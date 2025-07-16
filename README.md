@@ -1,79 +1,143 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# FanBookkeeping - 記帳應用程式
 
-# Getting Started
+一個簡單易用的 React Native 記帳應用程式，幫助您追蹤日常收支。
 
->**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
+## 功能特色
 
-## Step 1: Start the Metro Server
+### 📱 主要功能
+- **交易記錄**: 輕鬆記錄收入和支出
+- **分類管理**: 預設多種常用分類（飲食、交通、購物等）
+- **統計分析**: 查看收支統計和分類分析
+- **簡潔介面**: 現代化的 UI 設計，操作直觀
 
-First, you will need to start **Metro**, the JavaScript _bundler_ that ships _with_ React Native.
+### 🎯 核心頁面
+1. **首頁**: 顯示本月總覽和最近交易記錄
+2. **統計**: 查看收支分類統計和百分比分析
+3. **設定**: 應用程式設定和數據管理
 
-To start Metro, run the following command from the _root_ of your React Native project:
+### 💰 支援功能
+- 收入/支出分類
+- 金額格式化（新台幣）
+- 日期記錄
+- 交易描述
+- 餘額計算
 
-```bash
-# using npm
-npm start
+## 技術架構
 
-# OR using Yarn
-yarn start
+### 使用技術
+- **React Native 0.75.2**
+- **TypeScript**
+- **React Navigation** (底部導航 + 堆疊導航)
+- **React Native Vector Icons**
+
+### 專案結構
+```
+src/
+├── components/          # 可重用組件
+│   ├── TransactionItem.tsx
+│   └── AddButton.tsx
+├── screens/            # 頁面組件
+│   ├── HomeScreen.tsx
+│   ├── AddTransactionScreen.tsx
+│   ├── StatsScreen.tsx
+│   └── SettingsScreen.tsx
+├── types/              # TypeScript 類型定義
+│   └── index.ts
+└── utils/              # 工具函數
+    ├── helpers.ts
+    └── categories.ts
 ```
 
-## Step 2: Start your Application
+## 安裝與運行
 
-Let Metro Bundler run in its _own_ terminal. Open a _new_ terminal from the _root_ of your React Native project. Run the following command to start your _Android_ or _iOS_ app:
+### 前置需求
+- Node.js >= 18
+- React Native CLI
+- iOS Simulator (macOS) 或 Android Emulator
 
-### For Android
+### 安裝步驟
 
+1. **安裝依賴**
 ```bash
-# using npm
-npm run android
-
-# OR using Yarn
-yarn android
+npm install
 ```
 
-### For iOS
-
+2. **iOS 額外安裝**
 ```bash
-# using npm
+cd ios && pod install && cd ..
+```
+
+3. **啟動應用程式**
+
+iOS:
+```bash
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up _correctly_, you should see your new app running in your _Android Emulator_ or _iOS Simulator_ shortly provided you have set up your emulator/simulator correctly.
+Android:
+```bash
+npm run android
+```
 
-This is one way to run your app — you can also run it directly from within Android Studio and Xcode respectively.
+## 使用說明
 
-## Step 3: Modifying your App
+### 新增交易
+1. 點擊首頁右下角的 "+" 按鈕
+2. 選擇交易類型（收入/支出）
+3. 輸入金額
+4. 填寫描述
+5. 選擇分類
+6. 點擊儲存
 
-Now that you have successfully run the app, let's modify it.
+### 查看統計
+- 切換到「統計」頁面
+- 查看各分類的支出/收入統計
+- 了解收支比例
 
-1. Open `App.tsx` in your text editor of choice and edit some lines.
-2. For **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Developer Menu** (<kbd>Ctrl</kbd> + <kbd>M</kbd> (on Window and Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (on macOS)) to see your changes!
+### 管理設定
+- 在「設定」頁面管理應用程式選項
+- 匯出/備份數據（即將推出）
+- 清除所有數據
 
-   For **iOS**: Hit <kbd>Cmd ⌘</kbd> + <kbd>R</kbd> in your iOS Simulator to reload the app and see your changes!
+## 預設分類
 
-## Congratulations! :tada:
+### 支出分類
+- 🍽️ 飲食
+- 🚗 交通
+- 🛍️ 購物
+- 🎮 娛樂
+- 💊 醫療
+- 📚 教育
+- 🏠 住房
+- 📝 其他
 
-You've successfully run and modified your React Native App. :partying_face:
+### 收入分類
+- 💰 薪資
+- 📈 投資
+- 🎁 獎金
+- 💵 其他收入
 
-### Now what?
+## 開發計劃
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [Introduction to React Native](https://reactnative.dev/docs/getting-started).
+### 即將推出
+- [ ] 數據持久化存儲
+- [ ] 數據匯出功能
+- [ ] 雲端備份
+- [ ] 預算設定
+- [ ] 圖表分析
+- [ ] 多幣別支援
+- [ ] 深色模式
 
-# Troubleshooting
+### 技術改進
+- [ ] 狀態管理 (Redux/Context)
+- [ ] 本地數據庫 (SQLite/Realm)
+- [ ] 單元測試
+- [ ] E2E 測試
 
-If you can't get this to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+## 貢獻
 
-# Learn More
+歡迎提交 Issue 和 Pull Request 來改善這個專案！
 
-To learn more about React Native, take a look at the following resources:
+## 授權
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+MIT License
