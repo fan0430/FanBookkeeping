@@ -11,15 +11,13 @@ import {
   Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Transaction } from '../types';
+import { NavigationProps, Transaction } from '../types';
+import { useData } from '../context/DataContext';
 import { generateId } from '../utils/helpers';
 import { getCategoriesByType } from '../utils/categories';
 
-interface AddTransactionScreenProps {
-  navigation: any;
-}
-
-const AddTransactionScreen: React.FC<AddTransactionScreenProps> = ({ navigation }) => {
+const AddTransactionScreen: React.FC<NavigationProps> = ({ navigation }) => {
+  const { addTransaction } = useData();
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -48,7 +46,7 @@ const AddTransactionScreen: React.FC<AddTransactionScreenProps> = ({ navigation 
     });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!amount || !description || !selectedCategory) {
       Alert.alert('錯誤', '請填寫所有必要欄位');
       return;
@@ -63,18 +61,20 @@ const AddTransactionScreen: React.FC<AddTransactionScreenProps> = ({ navigation 
       date: selectedDate,
     };
 
-    // 這裡應該將交易保存到狀態管理或數據庫
-    console.log('新增交易:', newTransaction);
-    
-    Alert.alert('成功', '交易已新增', [
-      { text: '確定', onPress: () => navigation.goBack() }
+    try {
+      await addTransaction(newTransaction);
+          Alert.alert('成功', '交易已新增', [
+      { text: '確定', onPress: () => navigation.navigate('home') }
     ]);
+    } catch (error) {
+      Alert.alert('錯誤', '新增交易失敗');
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => navigation.navigate('home')}>
           <Text style={styles.cancelButton}>取消</Text>
         </TouchableOpacity>
         <Text style={styles.title}>新增交易</Text>
@@ -140,18 +140,18 @@ const AddTransactionScreen: React.FC<AddTransactionScreenProps> = ({ navigation 
           />
         </View>
 
-        {/* 日期選擇 */}
+        {/* 日期選擇 - 測試版本 */}
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>日期</Text>
-          <TouchableOpacity
-            style={styles.dateButton}
-            onPress={showDatePickerModal}
-          >
-            <Text style={styles.dateButtonText}>
-              {formatDate(selectedDate)}
-            </Text>
-            <Text style={styles.dateButtonIcon}>📅</Text>
-          </TouchableOpacity>
+          <Text style={styles.label}>日期選擇</Text>
+          <View style={styles.testDateContainer}>
+            <Text style={styles.testDateText}>當前日期: {formatDate(selectedDate)}</Text>
+            <TouchableOpacity
+              style={styles.testDateButton}
+              onPress={showDatePickerModal}
+            >
+              <Text style={styles.testDateButtonText}>點擊選擇日期</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* 分類選擇 */}
@@ -286,6 +286,37 @@ const styles = StyleSheet.create({
   },
   dateButtonIcon: {
     fontSize: 20,
+  },
+  debugText: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  testDateContainer: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#3498DB',
+    borderStyle: 'dashed',
+  },
+  testDateText: {
+    fontSize: 16,
+    color: '#2C3E50',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  testDateButton: {
+    backgroundColor: '#3498DB',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  testDateButtonText: {
+    fontSize: 16,
+    color: 'white',
+    fontWeight: '600',
   },
   categoriesContainer: {
     flexDirection: 'row',

@@ -1,118 +1,55 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
+  TouchableOpacity,
   FlatList,
   SafeAreaView,
-  StatusBar,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { Transaction } from '../types';
-import { formatCurrency, calculateTotal } from '../utils/helpers';
-import TransactionItem from '../components/TransactionItem';
-import AddButton from '../components/AddButton';
+import { NavigationProps, Transaction } from '../types';
+import { useData } from '../context/DataContext';
+import { defaultCategories } from '../utils/categories';
 
-interface HomeScreenProps {
-  navigation: any;
-}
-
-const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+const HomeScreen: React.FC<NavigationProps> = ({ navigation }) => {
+  const { currentLedger, deleteTransaction } = useData();
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const pageSize = 10;
 
-  // 模擬一些初始數據
-  useEffect(() => {
-    loadInitialTransactions();
-  }, []);
+  // 如果沒有選擇帳本，導航到帳本選擇頁面
+  React.useEffect(() => {
+    if (!currentLedger) {
+      navigation.navigate('ledgerSelect');
+    }
+  }, [currentLedger, navigation]);
 
-  const loadInitialTransactions = () => {
-    const mockTransactions: Transaction[] = [
-      {
-        id: '1',
-        amount: 150,
-        type: 'expense',
-        category: '1',
-        description: '午餐',
-        date: new Date(),
-      },
-      {
-        id: '2',
-        amount: 50000,
-        type: 'income',
-        category: '9',
-        description: '月薪',
-        date: new Date(),
-      },
-      {
-        id: '3',
-        amount: 200,
-        type: 'expense',
-        category: '2',
-        description: '計程車',
-        date: new Date(),
-      },
-      {
-        id: '4',
-        amount: 300,
-        type: 'expense',
-        category: '3',
-        description: '晚餐',
-        date: new Date(),
-      },
-      {
-        id: '5',
-        amount: 1000,
-        type: 'expense',
-        category: '4',
-        description: '購物',
-        date: new Date(),
-      },
-      {
-        id: '6',
-        amount: 800,
-        type: 'income',
-        category: '10',
-        description: '兼職收入',
-        date: new Date(),
-      },
-      {
-        id: '7',
-        amount: 150,
-        type: 'expense',
-        category: '5',
-        description: '咖啡',
-        date: new Date(),
-      },
-      {
-        id: '8',
-        amount: 500,
-        type: 'expense',
-        category: '6',
-        description: '電影票',
-        date: new Date(),
-      },
-      {
-        id: '9',
-        amount: 1200,
-        type: 'expense',
-        category: '7',
-        description: '房租',
-        date: new Date(),
-      },
-      {
-        id: '10',
-        amount: 300,
-        type: 'expense',
-        category: '8',
-        description: '水電費',
-        date: new Date(),
-      },
-    ];
-    setTransactions(mockTransactions);
+  if (!currentLedger) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007bff" />
+          <Text style={styles.loadingText}>載入中...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const totalIncome = currentLedger.transactions
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const totalExpense = currentLedger.transactions
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const balance = totalIncome - totalExpense;
+
+  const formatCurrency = (amount: number) => {
+    return `NT$ ${amount.toLocaleString()}`;
   };
 
   const loadMoreTransactions = () => {
@@ -122,171 +59,144 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     
     // 模擬 API 載入延遲
     setTimeout(() => {
-      const newTransactions: Transaction[] = [
-        {
-          id: `${page * pageSize + 1}`,
-          amount: 250,
-          type: 'expense',
-          category: '1',
-          description: '午餐',
-          date: new Date(),
-        },
-        {
-          id: `${page * pageSize + 2}`,
-          amount: 180,
-          type: 'expense',
-          category: '2',
-          description: '交通費',
-          date: new Date(),
-        },
-        {
-          id: `${page * pageSize + 3}`,
-          amount: 400,
-          type: 'expense',
-          category: '3',
-          description: '晚餐',
-          date: new Date(),
-        },
-        {
-          id: `${page * pageSize + 4}`,
-          amount: 1200,
-          type: 'expense',
-          category: '4',
-          description: '購物',
-          date: new Date(),
-        },
-        {
-          id: `${page * pageSize + 5}`,
-          amount: 200,
-          type: 'expense',
-          category: '5',
-          description: '咖啡',
-          date: new Date(),
-        },
-        {
-          id: `${page * pageSize + 6}`,
-          amount: 600,
-          type: 'expense',
-          category: '6',
-          description: '娛樂',
-          date: new Date(),
-        },
-        {
-          id: `${page * pageSize + 7}`,
-          amount: 800,
-          type: 'expense',
-          category: '7',
-          description: '房租',
-          date: new Date(),
-        },
-        {
-          id: `${page * pageSize + 8}`,
-          amount: 350,
-          type: 'expense',
-          category: '8',
-          description: '水電費',
-          date: new Date(),
-        },
-        {
-          id: `${page * pageSize + 9}`,
-          amount: 1500,
-          type: 'income',
-          category: '9',
-          description: '獎金',
-          date: new Date(),
-        },
-        {
-          id: `${page * pageSize + 10}`,
-          amount: 900,
-          type: 'income',
-          category: '10',
-          description: '投資收益',
-          date: new Date(),
-        },
-      ];
+      const currentPage = page;
+      const startIndex = currentPage * pageSize;
+      const endIndex = startIndex + pageSize;
+      const allTransactions = currentLedger.transactions;
+      
+      if (startIndex >= allTransactions.length) {
+        setHasMore(false);
+        setLoading(false);
+        return;
+      }
 
-      setTransactions(prev => [...prev, ...newTransactions]);
       setPage(prev => prev + 1);
       setLoading(false);
-      
-      // 模擬沒有更多數據的情況（第5頁後）
-      if (page >= 4) {
-        setHasMore(false);
-      }
-    }, 1000);
+    }, 500);
   };
 
-  const totalIncome = calculateTotal(transactions, 'income');
-  const totalExpense = calculateTotal(transactions, 'expense');
-  const balance = totalIncome - totalExpense;
+  const handleDeleteTransaction = (transaction: Transaction) => {
+    Alert.alert(
+      '確認刪除',
+      `確定要刪除「${transaction.description}」這筆交易嗎？`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '刪除',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteTransaction(transaction.id);
+            } catch (error) {
+              Alert.alert('錯誤', '刪除交易失敗');
+            }
+          },
+        },
+      ]
+    );
+  };
 
-  const renderTransaction = ({ item }: { item: Transaction }) => (
-    <TransactionItem
-      transaction={item}
-      onPress={() => navigation.navigate('TransactionDetail', { transaction: item })}
-    />
-  );
+  const renderTransaction = ({ item }: { item: Transaction }) => {
+    const category = defaultCategories.find(c => c.id === item.category);
+    
+    return (
+      <TouchableOpacity
+        style={styles.transactionItem}
+        onLongPress={() => handleDeleteTransaction(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.transactionInfo}>
+          <Text style={styles.transactionDescription}>{item.description}</Text>
+          <Text style={styles.transactionDate}>
+            {item.date.toLocaleDateString('zh-TW')}
+          </Text>
+        </View>
+        <View style={styles.transactionAmountContainer}>
+          <Text style={[
+            styles.transactionAmount,
+            item.type === 'income' ? styles.incomeText : styles.expenseText
+          ]}>
+            {item.type === 'income' ? '+' : '-'}{formatCurrency(item.amount)}
+          </Text>
+          <Text style={styles.transactionCategory}>
+            ({category?.name || '其他'})
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const renderFooter = () => {
     if (!loading) return null;
-    
     return (
       <View style={styles.loadingFooter}>
-        <ActivityIndicator size="small" color="#3498DB" />
-        <Text style={styles.loadingText}>載入中...</Text>
+        <ActivityIndicator size="small" color="#007bff" />
+        <Text style={styles.loadingText}>載入更多...</Text>
       </View>
     );
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
-      
-      {/* 總覽卡片 */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.navigate('ledgerSelect')}
+        >
+          <Text style={styles.backButtonText}>← 切換帳本</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>{currentLedger.name}</Text>
+        <TouchableOpacity 
+          style={styles.statsButton}
+          onPress={() => navigation.navigate('stats')}
+        >
+          <Text style={styles.statsButtonText}>統計</Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.summaryCard}>
-        <Text style={styles.summaryTitle}>本月總覽</Text>
-        <View style={styles.balanceContainer}>
-          <Text style={styles.balanceLabel}>餘額</Text>
-          <Text style={[styles.balanceAmount, { color: balance >= 0 ? '#2ECC71' : '#E74C3C' }]}>
-            {formatCurrency(balance)}
-          </Text>
-        </View>
+        <Text style={styles.balance}>{formatCurrency(balance)}</Text>
+        <Text style={styles.balanceLabel}>當前餘額</Text>
+        
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
             <Text style={styles.statLabel}>收入</Text>
-            <Text style={[styles.statAmount, { color: '#2ECC71' }]}>
+            <Text style={[styles.statAmount, styles.incomeText]}>
               {formatCurrency(totalIncome)}
             </Text>
           </View>
           <View style={styles.statItem}>
             <Text style={styles.statLabel}>支出</Text>
-            <Text style={[styles.statAmount, { color: '#E74C3C' }]}>
+            <Text style={[styles.statAmount, styles.expenseText]}>
               {formatCurrency(totalExpense)}
             </Text>
           </View>
         </View>
       </View>
 
-      {/* 交易列表 */}
-      <View style={styles.transactionsContainer}>
-        <Text style={styles.sectionTitle}>最近交易</Text>
-        <FlatList
-          data={transactions}
-          renderItem={renderTransaction}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContainer}
-          onEndReached={loadMoreTransactions}
-          onEndReachedThreshold={0.1}
-          ListFooterComponent={renderFooter}
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={10}
-          windowSize={10}
-          initialNumToRender={10}
-        />
-      </View>
+      <FlatList
+        data={currentLedger.transactions}
+        renderItem={renderTransaction}
+        keyExtractor={(item) => item.id}
+        style={styles.transactionsContainer}
+        contentContainerStyle={styles.listContainer}
+        onEndReached={loadMoreTransactions}
+        onEndReachedThreshold={0.1}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>還沒有交易記錄</Text>
+            <Text style={styles.emptySubText}>點擊下方按鈕新增第一筆交易</Text>
+          </View>
+        }
+      />
 
-      <AddButton onPress={() => navigation.navigate('AddTransaction')} />
+      <TouchableOpacity
+        style={styles.addButton}
+        onPress={() => navigation.navigate('addTransaction')}
+      >
+        <Text style={styles.addButtonText}>+ 新增交易</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -296,32 +206,74 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
-  summaryCard: {
-    backgroundColor: 'white',
-    margin: 16,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 20,
-    borderRadius: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    position: 'relative',
+  },
+  backButton: {
+    position: 'absolute',
+    left: 20,
+    top: 0,
+    bottom: 0,
+    zIndex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: '#007bff',
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#212529',
+    textAlign: 'center',
+    width: '100%',
+  },
+  statsButton: {
+    position: 'absolute',
+    right: 20,
+    top: 0,
+    bottom: 0,
+    zIndex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  statsButtonText: {
+    fontSize: 16,
+    color: '#007bff',
+  },
+  summaryCard: {
+    backgroundColor: '#fff',
+    margin: 20,
+    padding: 20,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2C3E50',
-    marginBottom: 16,
-  },
-  balanceContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
+  balance: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#212529',
+    textAlign: 'center',
+    marginBottom: 5,
   },
   balanceLabel: {
     fontSize: 14,
-    color: '#7F8C8D',
-    marginBottom: 4,
-  },
-  balanceAmount: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    color: '#6c757d',
+    textAlign: 'center',
+    marginBottom: 15,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -331,38 +283,98 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statLabel: {
-    fontSize: 12,
-    color: '#7F8C8D',
-    marginBottom: 4,
+    fontSize: 14,
+    color: '#6c757d',
+    marginBottom: 5,
   },
   statAmount: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: 'bold',
+  },
+  incomeText: {
+    color: '#28a745',
+  },
+  expenseText: {
+    color: '#dc3545',
   },
   transactionsContainer: {
     flex: 1,
     marginHorizontal: 16,
-    marginBottom: 100, // 為固定按鈕留出空間
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#2C3E50',
-    marginBottom: 12,
   },
   listContainer: {
     paddingBottom: 20,
   },
-  loadingFooter: {
-    paddingVertical: 20,
+  transactionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  transactionInfo: {
+    flex: 1,
+  },
+  transactionDescription: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#212529',
+    marginBottom: 4,
+  },
+  transactionCategory: {
+    fontSize: 14,
+    color: '#6c757d',
+    marginBottom: 2,
+  },
+  transactionDate: {
+    fontSize: 12,
+    color: '#6c757d',
+  },
+  transactionAmount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  transactionAmountContainer: {
+    alignItems: 'flex-end',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 18,
+    color: '#6c757d',
+    marginBottom: 8,
+  },
+  emptySubText: {
+    fontSize: 14,
+    color: '#6c757d',
+  },
+  addButton: {
+    backgroundColor: '#007bff',
+    margin: 20,
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  addButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  loadingFooter: {
     flexDirection: 'row',
     justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 10,
   },
   loadingText: {
     marginLeft: 10,
+    color: '#007bff',
     fontSize: 14,
-    color: '#7F8C8D',
   },
 });
 

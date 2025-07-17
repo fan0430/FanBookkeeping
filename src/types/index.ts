@@ -21,4 +21,17 @@ export interface Budget {
   amount: number;
   spent: number;
   period: 'monthly' | 'weekly' | 'yearly';
+}
+
+export interface Ledger {
+  id: string;
+  name: string;
+  transactions: Transaction[];
+  createdAt: Date;
+  note?: string; // 可選的備註欄位
+}
+
+export interface NavigationProps {
+  navigation: any;
+  route: any;
 } 
