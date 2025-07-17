@@ -14,8 +14,11 @@ import { NavigationProps, Ledger } from '../types';
 import { useData } from '../context/DataContext';
 
 const LedgerSelectScreen: React.FC<NavigationProps> = ({ navigation }) => {
-  const { ledgers, setCurrentLedger, addLedger, deleteLedger } = useData();
+  const { ledgers, setCurrentLedger, addLedger, deleteLedger, moveLedger } = useData();
   const [showNewLedgerModal, setShowNewLedgerModal] = useState(false);
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [selectedLedger, setSelectedLedger] = useState<Ledger | null>(null);
   const [newLedgerName, setNewLedgerName] = useState('');
   const [newLedgerNote, setNewLedgerNote] = useState('');
 
@@ -35,6 +38,49 @@ const LedgerSelectScreen: React.FC<NavigationProps> = ({ navigation }) => {
     navigation.navigate('home');
   };
 
+  const handleLongPressLedger = (ledger: Ledger) => {
+    setSelectedLedger(ledger);
+    setShowActionModal(true);
+  };
+
+  const handleMoveLedger = (action: 'first' | 'prev' | 'next' | 'last') => {
+    if (!selectedLedger) return;
+    
+    try {
+      moveLedger(selectedLedger.id, action);
+      setShowMoveModal(false);
+      setShowActionModal(false);
+      setSelectedLedger(null);
+    } catch (error) {
+      Alert.alert('錯誤', '移動帳本失敗');
+    }
+  };
+
+  const handleDeleteLedger = () => {
+    if (!selectedLedger) return;
+    
+    setShowActionModal(false);
+    Alert.alert(
+      '確認刪除',
+      `確定要刪除「${selectedLedger.name}」嗎？此操作無法復原。`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '刪除',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteLedger(selectedLedger.id);
+              setSelectedLedger(null);
+            } catch (error) {
+              Alert.alert('錯誤', '刪除帳本失敗');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleAddLedger = async () => {
     if (!newLedgerName.trim()) {
       Alert.alert('錯誤', '請輸入帳本名稱');
@@ -52,27 +98,6 @@ const LedgerSelectScreen: React.FC<NavigationProps> = ({ navigation }) => {
     }
   };
 
-  const handleDeleteLedger = (ledger: Ledger) => {
-    Alert.alert(
-      '確認刪除',
-      `確定要刪除「${ledger.name}」嗎？此操作無法復原。`,
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '刪除',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteLedger(ledger.id);
-            } catch (error) {
-              Alert.alert('錯誤', '刪除帳本失敗');
-            }
-          },
-        },
-      ]
-    );
-  };
-
   const renderLedgerItem = ({ item }: { item: Ledger }) => {
     const balance = calculateBalance(item);
     const balanceColor = balance >= 0 ? '#28a745' : '#dc3545';
@@ -81,7 +106,7 @@ const LedgerSelectScreen: React.FC<NavigationProps> = ({ navigation }) => {
       <TouchableOpacity
         style={styles.ledgerItem}
         onPress={() => handleSelectLedger(item)}
-        onLongPress={() => handleDeleteLedger(item)}
+        onLongPress={() => handleLongPressLedger(item)}
       >
         <View style={styles.ledgerInfo}>
           <Text style={styles.ledgerName}>{item.name}</Text>
@@ -123,6 +148,7 @@ const LedgerSelectScreen: React.FC<NavigationProps> = ({ navigation }) => {
         <Text style={styles.addButtonText}>+ 新增帳本</Text>
       </TouchableOpacity>
 
+      {/* 新增帳本 Modal */}
       <Modal
         visible={showNewLedgerModal}
         animationType="slide"
@@ -165,6 +191,101 @@ const LedgerSelectScreen: React.FC<NavigationProps> = ({ navigation }) => {
                 <Text style={styles.modalButtonConfirmText}>新增</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 帳本操作選單 Modal */}
+      <Modal
+        visible={showActionModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowActionModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.actionModalContent}>
+            <Text style={styles.actionModalTitle}>
+              {selectedLedger?.name}
+            </Text>
+            
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => {
+                setShowActionModal(false);
+                setShowMoveModal(true);
+              }}
+            >
+              <Text style={styles.actionButtonText}>移動帳本</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={handleDeleteLedger}
+            >
+              <Text style={[styles.actionButtonText, styles.deleteButtonText]}>刪除帳本</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.actionButton, styles.cancelButton]}
+              onPress={() => {
+                setShowActionModal(false);
+                setSelectedLedger(null);
+              }}
+            >
+              <Text style={styles.cancelButtonText}>取消</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 移動帳本選單 Modal */}
+      <Modal
+        visible={showMoveModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowMoveModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.moveModalContent}>
+            <Text style={styles.moveModalTitle}>移動帳本</Text>
+            
+            <TouchableOpacity
+              style={styles.moveButton}
+              onPress={() => handleMoveLedger('first')}
+            >
+              <Text style={styles.moveButtonText}>移到第一筆</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.moveButton}
+              onPress={() => handleMoveLedger('prev')}
+            >
+              <Text style={styles.moveButtonText}>往前一筆</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.moveButton}
+              onPress={() => handleMoveLedger('next')}
+            >
+              <Text style={styles.moveButtonText}>往後一筆</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.moveButton}
+              onPress={() => handleMoveLedger('last')}
+            >
+              <Text style={styles.moveButtonText}>移到最後面</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.moveButton, styles.cancelButton]}
+              onPress={() => {
+                setShowMoveModal(false);
+                setSelectedLedger(null);
+              }}
+            >
+              <Text style={styles.cancelButtonText}>取消</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -302,6 +423,73 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  // 新增的樣式
+  actionModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    width: '80%',
+    maxWidth: 300,
+  },
+  actionModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#212529',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  actionButton: {
+    backgroundColor: '#f8f9fa',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+  },
+  actionButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#212529',
+  },
+  deleteButtonText: {
+    color: '#dc3545',
+  },
+  cancelButton: {
+    backgroundColor: '#fff',
+    borderColor: '#6c757d',
+  },
+  cancelButtonText: {
+    color: '#6c757d',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  moveModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    width: '80%',
+    maxWidth: 300,
+  },
+  moveModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#212529',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  moveButton: {
+    backgroundColor: '#007bff',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  moveButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#fff',
   },
 });
 

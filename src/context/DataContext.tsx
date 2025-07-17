@@ -7,7 +7,9 @@ interface DataContextType {
   currentLedger: Ledger | null;
   setCurrentLedger: (ledger: Ledger | null) => void;
   addLedger: (name: string, note?: string) => Promise<void>;
+  updateLedger: (ledgerId: string, updates: { name?: string; note?: string }) => Promise<void>;
   deleteLedger: (ledgerId: string) => Promise<void>;
+  moveLedger: (ledgerId: string, action: 'first' | 'prev' | 'next' | 'last') => Promise<void>;
   addTransaction: (transaction: Transaction) => Promise<void>;
   deleteTransaction: (transactionId: string) => Promise<void>;
   loadLedgers: () => Promise<void>;
@@ -81,6 +83,31 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     await saveLedgers(updatedLedgers);
   };
 
+  // 更新帳本
+  const updateLedger = async (ledgerId: string, updates: { name?: string; note?: string }) => {
+    const updatedLedgers = ledgers.map(ledger => {
+      if (ledger.id === ledgerId) {
+        return {
+          ...ledger,
+          ...(updates.name && { name: updates.name.trim() }),
+          ...(updates.note !== undefined && { note: updates.note.trim() || undefined }),
+        };
+      }
+      return ledger;
+    });
+    
+    setLedgers(updatedLedgers);
+    await saveLedgers(updatedLedgers);
+    
+    // 如果更新的是當前帳本，也要更新 currentLedger
+    if (currentLedger?.id === ledgerId) {
+      const updatedCurrentLedger = updatedLedgers.find(ledger => ledger.id === ledgerId);
+      if (updatedCurrentLedger) {
+        setCurrentLedger(updatedCurrentLedger);
+      }
+    }
+  };
+
   // 刪除帳本
   const deleteLedger = async (ledgerId: string) => {
     const updatedLedgers = ledgers.filter(ledger => ledger.id !== ledgerId);
@@ -90,6 +117,38 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (currentLedger?.id === ledgerId) {
       setCurrentLedger(null);
     }
+  };
+
+  // 移動帳本
+  const moveLedger = async (ledgerId: string, action: 'first' | 'prev' | 'next' | 'last') => {
+    const currentIndex = ledgers.findIndex(ledger => ledger.id === ledgerId);
+    if (currentIndex === -1) return;
+
+    let newIndex = currentIndex;
+    
+    switch (action) {
+      case 'first':
+        newIndex = 0;
+        break;
+      case 'prev':
+        newIndex = Math.max(0, currentIndex - 1);
+        break;
+      case 'next':
+        newIndex = Math.min(ledgers.length - 1, currentIndex + 1);
+        break;
+      case 'last':
+        newIndex = ledgers.length - 1;
+        break;
+    }
+
+    if (newIndex === currentIndex) return;
+
+    const updatedLedgers = [...ledgers];
+    const [movedLedger] = updatedLedgers.splice(currentIndex, 1);
+    updatedLedgers.splice(newIndex, 0, movedLedger);
+    
+    setLedgers(updatedLedgers);
+    await saveLedgers(updatedLedgers);
   };
 
   // 新增交易記錄
@@ -138,7 +197,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     currentLedger,
     setCurrentLedger,
     addLedger,
+    updateLedger,
     deleteLedger,
+    moveLedger,
     addTransaction,
     deleteTransaction,
     loadLedgers,

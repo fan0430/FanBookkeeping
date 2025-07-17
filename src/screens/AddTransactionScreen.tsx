@@ -25,6 +25,25 @@ const AddTransactionScreen: React.FC<NavigationProps> = ({ navigation }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
+  // 驗證金額輸入，只允許數字和小數點
+  const handleAmountChange = (text: string) => {
+    // 只允許數字和一個小數點
+    const numericText = text.replace(/[^0-9.]/g, '');
+    
+    // 確保只有一個小數點
+    const parts = numericText.split('.');
+    if (parts.length > 2) {
+      return; // 如果有多個小數點，不更新
+    }
+    
+    // 限制小數位數為2位
+    if (parts.length === 2 && parts[1].length > 2) {
+      return; // 如果小數位數超過2位，不更新
+    }
+    
+    setAmount(numericText);
+  };
+
   const categories = getCategoriesByType(type);
 
   const handleDateChange = (event: any, date?: Date) => {
@@ -122,7 +141,7 @@ const AddTransactionScreen: React.FC<NavigationProps> = ({ navigation }) => {
           <TextInput
             style={styles.amountInput}
             value={amount}
-            onChangeText={setAmount}
+            onChangeText={handleAmountChange}
             placeholder="0"
             keyboardType="numeric"
             textAlign="center"

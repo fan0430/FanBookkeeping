@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,9 @@ import {
   SafeAreaView,
   ScrollView,
   Dimensions,
+  Alert,
+  TextInput,
+  TouchableOpacity,
 } from 'react-native';
 import Svg, { Path, G, Circle } from 'react-native-svg';
 import { NavigationProps } from '../types';
@@ -28,7 +31,38 @@ const radius = chartSize / 2 - 20;
 const center = chartSize / 2;
 
 const StatsScreen: React.FC<NavigationProps> = ({ navigation }) => {
-  const { currentLedger } = useData();
+  const { currentLedger, updateLedger } = useData();
+  const [editingField, setEditingField] = useState<'name' | 'note' | null>(null);
+  const [editValue, setEditValue] = useState('');
+
+  const handleLongPress = (field: 'name' | 'note') => {
+    if (!currentLedger) return;
+    
+    const currentValue = field === 'name' ? currentLedger.name : (currentLedger.note || '');
+    setEditValue(currentValue);
+    setEditingField(field);
+  };
+
+  const handleSave = async () => {
+    if (!currentLedger || !editingField) return;
+
+    try {
+      const updates = editingField === 'name' 
+        ? { name: editValue.trim() }
+        : { note: editValue.trim() };
+      
+      await updateLedger(currentLedger.id, updates);
+      setEditingField(null);
+      setEditValue('');
+    } catch (error) {
+      Alert.alert('錯誤', '更新失敗，請重試');
+    }
+  };
+
+  const handleCancel = () => {
+    setEditingField(null);
+    setEditValue('');
+  };
 
   if (!currentLedger) {
     return (
@@ -269,7 +303,29 @@ const StatsScreen: React.FC<NavigationProps> = ({ navigation }) => {
 
           <View style={styles.statCard}>
             <Text style={styles.statCardLabel}>帳本名稱</Text>
-            <Text style={styles.statValue}>{currentLedger.name}</Text>
+            {editingField === 'name' ? (
+              <View style={styles.editContainer}>
+                <TextInput
+                  style={styles.editInput}
+                  value={editValue}
+                  onChangeText={setEditValue}
+                  placeholder="輸入帳本名稱"
+                  autoFocus
+                />
+                <View style={styles.editButtons}>
+                  <TouchableOpacity style={styles.editButton} onPress={handleSave}>
+                    <Text style={styles.editButtonText}>✓</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.editButton} onPress={handleCancel}>
+                    <Text style={styles.editButtonText}>✗</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity onLongPress={() => handleLongPress('name')}>
+                <Text style={styles.statValue}>{currentLedger.name}</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           <View style={styles.statCard}>
@@ -277,6 +333,36 @@ const StatsScreen: React.FC<NavigationProps> = ({ navigation }) => {
             <Text style={styles.statValue}>
               {currentLedger.createdAt.toLocaleDateString('zh-TW')}
             </Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Text style={styles.statCardLabel}>帳本備註</Text>
+            {editingField === 'note' ? (
+              <View style={styles.editContainer}>
+                <TextInput
+                  style={[styles.editInput, { fontSize: 16, fontStyle: 'italic' }]}
+                  value={editValue}
+                  onChangeText={setEditValue}
+                  placeholder="輸入帳本備註"
+                  multiline
+                  autoFocus
+                />
+                <View style={styles.editButtons}>
+                  <TouchableOpacity style={styles.editButton} onPress={handleSave}>
+                    <Text style={styles.editButtonText}>✓</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.editButton} onPress={handleCancel}>
+                    <Text style={styles.editButtonText}>✗</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity onLongPress={() => handleLongPress('note')}>
+                <Text style={styles.noteText}>
+                  {currentLedger.note || '無'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -409,6 +495,45 @@ const styles = StyleSheet.create({
     color: '#dc3545',
     marginTop: 10,
     textAlign: 'center',
+  },
+  noteText: {
+    fontSize: 16,
+    color: '#212529',
+    lineHeight: 24,
+    fontStyle: 'italic',
+  },
+  editContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 5,
+  },
+  editInput: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#212529',
+    borderWidth: 1,
+    borderColor: '#007bff',
+    borderRadius: 8,
+    padding: 8,
+    marginRight: 10,
+  },
+  editButtons: {
+    flexDirection: 'row',
+  },
+  editButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#007bff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 5,
+  },
+  editButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
 
