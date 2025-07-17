@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ const HomeScreen: React.FC<NavigationProps> = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [displayedTransactions, setDisplayedTransactions] = useState<Transaction[]>([]);
   const pageSize = 10;
 
   // 如果沒有選擇帳本，導航到帳本選擇頁面
@@ -26,6 +27,40 @@ const HomeScreen: React.FC<NavigationProps> = ({ navigation }) => {
       navigation.navigate('ledgerSelect');
     }
   }, [currentLedger, navigation]);
+
+  // 當帳本改變時，重置分頁狀態並載入第一頁
+  useEffect(() => {
+    if (currentLedger) {
+      setPage(1);
+      setHasMore(true);
+      setDisplayedTransactions([]);
+      loadInitialTransactions();
+    }
+  }, [currentLedger]);
+
+  // 當交易記錄數量改變時，重新載入第一頁
+  useEffect(() => {
+    if (currentLedger && displayedTransactions.length > 0) {
+      const currentTransactionCount = currentLedger.transactions.length;
+      const displayedTransactionCount = displayedTransactions.length;
+      
+      // 如果交易記錄數量有變化（新增或刪除），重新載入
+      if (currentTransactionCount !== displayedTransactionCount + (page - 1) * pageSize) {
+        loadInitialTransactions();
+      }
+    }
+  }, [currentLedger?.transactions.length]);
+
+  const loadInitialTransactions = () => {
+    if (!currentLedger) return;
+    
+    const initialTransactions = currentLedger.transactions
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, pageSize);
+    
+    setDisplayedTransactions(initialTransactions);
+    setHasMore(currentLedger.transactions.length > pageSize);
+  };
 
   if (!currentLedger) {
     return (
@@ -59,18 +94,22 @@ const HomeScreen: React.FC<NavigationProps> = ({ navigation }) => {
     
     // 模擬 API 載入延遲
     setTimeout(() => {
-      const currentPage = page;
-      const startIndex = currentPage * pageSize;
-      const endIndex = startIndex + pageSize;
-      const allTransactions = currentLedger.transactions;
+      const sortedTransactions = currentLedger.transactions
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       
-      if (startIndex >= allTransactions.length) {
+      const startIndex = page * pageSize;
+      const endIndex = startIndex + pageSize;
+      const newTransactions = sortedTransactions.slice(startIndex, endIndex);
+      
+      if (newTransactions.length === 0) {
         setHasMore(false);
         setLoading(false);
         return;
       }
 
+      setDisplayedTransactions(prev => [...prev, ...newTransactions]);
       setPage(prev => prev + 1);
+      setHasMore(endIndex < sortedTransactions.length);
       setLoading(false);
     }, 500);
   };
@@ -87,6 +126,8 @@ const HomeScreen: React.FC<NavigationProps> = ({ navigation }) => {
           onPress: async () => {
             try {
               await deleteTransaction(transaction.id);
+              // 重新載入交易記錄以反映刪除後的狀態
+              loadInitialTransactions();
             } catch (error) {
               Alert.alert('錯誤', '刪除交易失敗');
             }
@@ -175,7 +216,7 @@ const HomeScreen: React.FC<NavigationProps> = ({ navigation }) => {
       </View>
 
       <FlatList
-        data={currentLedger.transactions}
+        data={displayedTransactions}
         renderItem={renderTransaction}
         keyExtractor={(item) => item.id}
         style={styles.transactionsContainer}
