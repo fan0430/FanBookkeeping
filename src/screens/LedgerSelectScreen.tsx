@@ -102,6 +102,11 @@ const LedgerSelectScreen: React.FC<NavigationProps> = ({ navigation }) => {
     const balance = calculateBalance(item);
     const balanceColor = balance >= 0 ? '#28a745' : '#dc3545';
     
+    // 取得最新一筆交易
+    const latestTransaction = item.transactions.length > 0 
+      ? item.transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+      : null;
+    
     return (
       <TouchableOpacity
         style={styles.ledgerItem}
@@ -111,7 +116,18 @@ const LedgerSelectScreen: React.FC<NavigationProps> = ({ navigation }) => {
         <View style={styles.ledgerInfo}>
           <Text style={styles.ledgerName}>{item.name}</Text>
           <Text style={styles.ledgerDetails}>
-            {item.transactions.length} 筆交易 • 建立於 {item.createdAt.toLocaleDateString('zh-TW')}
+            {item.transactions.length} 筆交易
+            {latestTransaction && (
+              <>
+                {` • 最新: ${latestTransaction.date.getFullYear()}/${String(latestTransaction.date.getMonth() + 1).padStart(2, '0')}/${String(latestTransaction.date.getDate()).padStart(2, '0')} 金額: `}
+                <Text style={{ 
+                  color: latestTransaction.type === 'income' ? '#28a745' : '#dc3545',
+                  fontWeight: 'bold'
+                }}>
+                  {latestTransaction.type === 'income' ? '+' : '-'}{latestTransaction.amount.toLocaleString()} 元
+                </Text>
+              </>
+            )}
           </Text>
           {item.note && (
             <Text style={styles.ledgerNote} numberOfLines={2}>

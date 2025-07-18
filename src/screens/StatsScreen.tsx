@@ -146,7 +146,7 @@ const StatsScreen: React.FC<NavigationProps> = ({ navigation }) => {
   // 繪製圓餅圖的扇形
   const renderPieSlice = (item: ChartDataItem, index: number) => {
     // 如果角度為 0 或 360度，直接畫一個完整的圓
-    if (item.endAngle - item.startAngle >= 360) {
+    if (item.percentage >= 99.9 || item.endAngle - item.startAngle >= 359.9) {
       return (
         <Circle
           key={index}
@@ -331,7 +331,7 @@ const StatsScreen: React.FC<NavigationProps> = ({ navigation }) => {
           <View style={styles.statCard}>
             <Text style={styles.statCardLabel}>建立時間</Text>
             <Text style={styles.statValue}>
-              {currentLedger.createdAt.toLocaleDateString('zh-TW')}
+              {`${currentLedger.createdAt.getFullYear()}/${String(currentLedger.createdAt.getMonth() + 1).padStart(2, '0')}/${String(currentLedger.createdAt.getDate()).padStart(2, '0')}`}
             </Text>
           </View>
 

@@ -149,7 +149,7 @@ const HomeScreen: React.FC<NavigationProps> = ({ navigation }) => {
         <View style={styles.transactionInfo}>
           <Text style={styles.transactionDescription}>{item.description}</Text>
           <Text style={styles.transactionDate}>
-            {item.date.toLocaleDateString('zh-TW')}
+            {`${item.date.getFullYear()}/${String(item.date.getMonth() + 1).padStart(2, '0')}/${String(item.date.getDate()).padStart(2, '0')}`}
           </Text>
         </View>
         <View style={styles.transactionAmountContainer}>
