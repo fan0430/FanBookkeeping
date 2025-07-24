@@ -187,12 +187,20 @@ const HomeScreen: React.FC<NavigationProps> = ({ navigation }) => {
           <Text style={styles.backButtonText}>← 切換帳本</Text>
         </TouchableOpacity>
         <Text style={styles.title}>{currentLedger.name}</Text>
-        <TouchableOpacity 
-          style={styles.statsButton}
-          onPress={() => navigation.navigate('stats')}
-        >
-          <Text style={styles.statsButtonText}>統計</Text>
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity 
+            style={styles.headerButton}
+            onPress={() => navigation.navigate('stats')}
+          >
+            <Text style={styles.headerButtonText}>統計</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.headerButton}
+            onPress={() => navigation.navigate('settings')}
+          >
+            <Text style={styles.headerButtonText}>設定</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.summaryCard}>
@@ -282,16 +290,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     width: '100%',
   },
-  statsButton: {
+  headerButtons: {
     position: 'absolute',
     right: 20,
     top: 0,
     bottom: 0,
     zIndex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  statsButtonText: {
+  headerButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginLeft: 10,
+  },
+  headerButtonText: {
     fontSize: 16,
     color: '#007bff',
   },

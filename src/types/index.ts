@@ -34,4 +34,26 @@ export interface Ledger {
 export interface NavigationProps {
   navigation: any;
   route: any;
+}
+
+export interface Product {
+  id: string;
+  category: string;
+  categoryName: string;
+  productCode: string;
+  productName: string;
+  productionDate: string;
+  formattedDate: string;
+  barcode: string;
+}
+
+export interface ParsedBarcode {
+  category: string;
+  categoryName: string;
+  productCode: string;
+  productName: string;
+  productionDate: string;
+  formattedDate: string;
+  isValid: boolean;
+  error?: string;
 } 

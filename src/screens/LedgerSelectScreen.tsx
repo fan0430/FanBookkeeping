@@ -38,6 +38,10 @@ const LedgerSelectScreen: React.FC<NavigationProps> = ({ navigation }) => {
     navigation.navigate('home');
   };
 
+  const handleBackToMain = () => {
+    navigation.navigate('mainSelect');
+  };
+
   const handleLongPressLedger = (ledger: Ledger) => {
     setSelectedLedger(ledger);
     setShowActionModal(true);
@@ -146,7 +150,14 @@ const LedgerSelectScreen: React.FC<NavigationProps> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={handleBackToMain}
+        >
+          <Text style={styles.backButtonText}>← 返回</Text>
+        </TouchableOpacity>
         <Text style={styles.title}>選擇帳本</Text>
+        <View style={styles.placeholder} />
       </View>
 
       <FlatList
@@ -315,10 +326,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f9fa',
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 20,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
+  },
+  backButton: {
+    padding: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: '#007bff',
+    fontWeight: '500',
+  },
+  placeholder: {
+    width: 60,
   },
   title: {
     fontSize: 24,

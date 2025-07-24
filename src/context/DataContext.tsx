@@ -2,9 +2,14 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ledger, Transaction } from '../types';
 
+interface AppSettings {
+  defaultScreen: 'mainSelect' | 'ledgerSelect' | 'posSystem';
+}
+
 interface DataContextType {
   ledgers: Ledger[];
   currentLedger: Ledger | null;
+  appSettings: AppSettings;
   setCurrentLedger: (ledger: Ledger | null) => void;
   addLedger: (name: string, note?: string) => Promise<void>;
   updateLedger: (ledgerId: string, updates: { name?: string; note?: string }) => Promise<void>;
@@ -13,11 +18,14 @@ interface DataContextType {
   addTransaction: (transaction: Transaction) => Promise<void>;
   deleteTransaction: (transactionId: string) => Promise<void>;
   loadLedgers: () => Promise<void>;
+  updateAppSettings: (settings: Partial<AppSettings>) => Promise<void>;
+  loadAppSettings: () => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 const STORAGE_KEY = '@FanBookkeeping_ledgers';
+const SETTINGS_KEY = '@FanBookkeeping_settings';
 
 interface DataProviderProps {
   children: ReactNode;
@@ -26,6 +34,11 @@ interface DataProviderProps {
 export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [ledgers, setLedgers] = useState<Ledger[]>([]);
   const [currentLedger, setCurrentLedger] = useState<Ledger | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings>({
+    // defaultScreen: 'ledgerSelect'
+    // defaultScreen: 'posSystem'
+    defaultScreen: 'mainSelect'
+  });
 
   // 載入帳本資料
   const loadLedgers = async () => {
@@ -187,14 +200,40 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     await saveLedgers(updatedLedgers);
   };
 
+  // 載入應用程式設定
+  const loadAppSettings = async () => {
+    try {
+      const storedSettings = await AsyncStorage.getItem(SETTINGS_KEY);
+      if (storedSettings) {
+        const parsedSettings = JSON.parse(storedSettings);
+        setAppSettings(parsedSettings);
+      }
+    } catch (error) {
+      console.error('載入設定失敗:', error);
+    }
+  };
+
+  // 更新應用程式設定
+  const updateAppSettings = async (settings: Partial<AppSettings>) => {
+    try {
+      const updatedSettings = { ...appSettings, ...settings };
+      setAppSettings(updatedSettings);
+      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(updatedSettings));
+    } catch (error) {
+      console.error('更新設定失敗:', error);
+    }
+  };
+
   // 初始化載入資料
   useEffect(() => {
     loadLedgers();
+    loadAppSettings();
   }, []);
 
   const value: DataContextType = {
     ledgers,
     currentLedger,
+    appSettings,
     setCurrentLedger,
     addLedger,
     updateLedger,
@@ -203,6 +242,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     addTransaction,
     deleteTransaction,
     loadLedgers,
+    updateAppSettings,
+    loadAppSettings,
   };
 
   return (
