@@ -56,4 +56,18 @@ export interface ParsedBarcode {
   formattedDate: string;
   isValid: boolean;
   error?: string;
+}
+
+export interface GoogleUser {
+  id: string;
+  name: string;
+  email: string;
+  photo?: string;
+  accessToken?: string;
+}
+
+export interface GoogleAuthState {
+  isSignedIn: boolean;
+  user: GoogleUser | null;
+  accessToken: string | null;
 } 

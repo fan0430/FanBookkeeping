@@ -5,7 +5,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { StatusBar, SafeAreaView } from 'react-native';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { DataProvider, useData } from './src/context/DataContext';
+import { GoogleAuthProvider } from './src/context/GoogleAuthContext';
 
 // 導入頁面
 import MainSelectScreen from './src/screens/MainSelectScreen';
@@ -18,6 +20,13 @@ import ProductManagementScreen from './src/screens/ProductManagementScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 
 type ScreenType = 'mainSelect' | 'ledgerSelect' | 'home' | 'addTransaction' | 'stats' | 'posSystem' | 'productManagement' | 'settings';
+
+// 在 App 啟動時初始化 Google Sign-In
+GoogleSignin.configure({
+  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  webClientId: '191329007466-3ep6o34nim2ouqg4kukre3irekh16t3q.apps.googleusercontent.com',
+  offlineAccess: true,
+});
 
 function AppContent(): React.JSX.Element {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('mainSelect');
@@ -72,9 +81,11 @@ function AppContent(): React.JSX.Element {
 
 function App(): React.JSX.Element {
   return (
-    <DataProvider>
-      <AppContent />
-    </DataProvider>
+    <GoogleAuthProvider>
+      <DataProvider>
+        <AppContent />
+      </DataProvider>
+    </GoogleAuthProvider>
   );
 }
 

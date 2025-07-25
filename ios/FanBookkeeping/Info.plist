@@ -50,5 +50,16 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.fanbookkeeping</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.191329007466-3ep6o34nim2ouqg4kukre3irekh16t3q</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
