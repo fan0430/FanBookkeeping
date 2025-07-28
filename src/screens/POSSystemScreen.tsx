@@ -47,6 +47,8 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
   const [isLoadingSpreadsheets, setIsLoadingSpreadsheets] = useState(false);
   const [spreadsheets, setSpreadsheets] = useState<SpreadsheetInfo[]>([]);
   const [showSpreadsheetsModal, setShowSpreadsheetsModal] = useState(false);
+  const [showCreateSpreadsheetModal, setShowCreateSpreadsheetModal] = useState(false);
+  const [newSpreadsheetName, setNewSpreadsheetName] = useState('');
 
   const { authState, signIn, signOut, getAccessToken } = useGoogleAuth();
 
@@ -543,22 +545,27 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
             { 
               text: '確定建立', 
               style: 'destructive',
-              onPress: () => createNewSpreadsheet()
+              onPress: () => showCreateSpreadsheetDialog()
             }
           ]
         );
         return;
       }
 
-      await createNewSpreadsheet();
+      showCreateSpreadsheetDialog();
     } catch (error) {
       console.error('建立試算表錯誤:', error);
       Alert.alert('錯誤', '建立試算表失敗，請重試');
     }
   };
 
+  // 顯示建立試算表對話框
+  const showCreateSpreadsheetDialog = () => {
+    setShowCreateSpreadsheetModal(true);
+  };
+
   // 實際建立試算表的函數
-  const createNewSpreadsheet = async () => {
+  const createNewSpreadsheet = async (customName?: string) => {
     try {
       setIsCreatingSpreadsheet(true);
       
@@ -567,7 +574,27 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
         googleSheetsService.setAccessToken(token);
       }
 
-      const newSpreadsheetId = await googleSheetsService.createProductSpreadsheet();
+      // 使用自訂名稱或預設名稱
+      const spreadsheetName = customName?.trim() || 'POS系統產品資料';
+      
+      // 建立試算表並設定工作表名稱
+      const newSpreadsheetId = await googleSheetsService.createSpreadsheet(spreadsheetName);
+      
+      // 重新命名第一個工作表為「產品資料」
+      await googleSheetsService.renameSheet(newSpreadsheetId, '產品資料');
+      
+      // 為新試算表添加標題列
+      const headers = [
+        '掃描時間',
+        '產品類別代碼',
+        '產品類別名稱',
+        '產品代碼',
+        '產品名稱',
+        '生產日期',
+        '格式化日期',
+        '販售價格',
+      ];
+      await googleSheetsService.appendRow(newSpreadsheetId, '產品資料', headers);
       
       // 儲存試算表資訊到本地
       await saveUserSpreadsheetId(
@@ -575,7 +602,7 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
         authState.user!.email,
         authState.user!.name,
         newSpreadsheetId,
-        '產品掃描記錄'
+        spreadsheetName
       );
       
       setSpreadsheetId(newSpreadsheetId);
@@ -583,7 +610,7 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
       // 重新載入試算表資訊
       await loadUserSpreadsheetInfo();
       
-      Alert.alert('成功', `已建立新的試算表！\n試算表ID: ${newSpreadsheetId}`);
+      Alert.alert('成功', `已建立新的試算表：${spreadsheetName}\n試算表ID: ${newSpreadsheetId}`);
     } catch (error) {
       console.error('建立試算表錯誤:', error);
       Alert.alert('錯誤', '建立試算表失敗，請重試');
@@ -1267,6 +1294,77 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
           </View>
         </Modal>
       )}
+
+      {/* 建立試算表 Modal */}
+      <Modal
+        visible={showCreateSpreadsheetModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowCreateSpreadsheetModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.createSpreadsheetModalContent}>
+            <View style={styles.createSpreadsheetModalHeader}>
+              <Text style={styles.createSpreadsheetModalTitle}>建立新試算表</Text>
+              <TouchableOpacity
+                style={styles.createSpreadsheetModalCloseButton}
+                onPress={() => {
+                  setShowCreateSpreadsheetModal(false);
+                  setNewSpreadsheetName('');
+                }}
+              >
+                <Text style={styles.createSpreadsheetModalCloseButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.createSpreadsheetModalBody}>
+              <Text style={styles.createSpreadsheetModalLabel}>
+                試算表名稱 (可選):
+              </Text>
+              <TextInput
+                style={styles.createSpreadsheetModalInput}
+                placeholder="POS系統產品資料"
+                value={newSpreadsheetName}
+                onChangeText={setNewSpreadsheetName}
+                autoFocus={true}
+                maxLength={50}
+              />
+              <Text style={styles.createSpreadsheetModalHint}>
+                如果沒有輸入名稱，將使用預設名稱「POS系統產品資料」
+              </Text>
+            </View>
+
+            <View style={styles.createSpreadsheetModalActions}>
+              <TouchableOpacity
+                style={[styles.createSpreadsheetModalButton, styles.createSpreadsheetModalButtonCancel]}
+                onPress={() => {
+                  setShowCreateSpreadsheetModal(false);
+                  setNewSpreadsheetName('');
+                }}
+              >
+                <Text style={styles.createSpreadsheetModalButtonCancelText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.createSpreadsheetModalButton, 
+                  styles.createSpreadsheetModalButtonConfirm,
+                  isCreatingSpreadsheet && styles.createSpreadsheetModalButtonDisabled
+                ]}
+                onPress={() => {
+                  createNewSpreadsheet(newSpreadsheetName);
+                  setShowCreateSpreadsheetModal(false);
+                  setNewSpreadsheetName('');
+                }}
+                disabled={isCreatingSpreadsheet}
+              >
+                <Text style={styles.createSpreadsheetModalButtonConfirmText}>
+                  {isCreatingSpreadsheet ? '建立中...' : '建立試算表'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* 試算表列表 Modal */}
       <Modal
@@ -2230,6 +2328,107 @@ const styles = StyleSheet.create({
   },
   spreadsheetListBottomSpacer: {
     height: 20,
+  },
+  // 建立試算表 Modal 樣式
+  createSpreadsheetModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    width: '90%',
+    maxWidth: 400,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  createSpreadsheetModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  createSpreadsheetModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#212529',
+  },
+  createSpreadsheetModalCloseButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#f8f9fa',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  createSpreadsheetModalCloseButtonText: {
+    fontSize: 18,
+    color: '#6c757d',
+    fontWeight: 'bold',
+  },
+  createSpreadsheetModalBody: {
+    padding: 20,
+  },
+  createSpreadsheetModalLabel: {
+    fontSize: 16,
+    color: '#212529',
+    fontWeight: '500',
+    marginBottom: 10,
+  },
+  createSpreadsheetModalInput: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 8,
+    padding: 15,
+    fontSize: 16,
+    color: '#212529',
+    marginBottom: 10,
+  },
+  createSpreadsheetModalHint: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontStyle: 'italic',
+    lineHeight: 20,
+  },
+  createSpreadsheetModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 20,
+    paddingTop: 0,
+    gap: 15,
+  },
+  createSpreadsheetModalButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  createSpreadsheetModalButtonCancel: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+  },
+  createSpreadsheetModalButtonConfirm: {
+    backgroundColor: '#007bff',
+  },
+  createSpreadsheetModalButtonDisabled: {
+    backgroundColor: '#6c757d',
+    opacity: 0.6,
+  },
+  createSpreadsheetModalButtonCancelText: {
+    color: '#6c757d',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  createSpreadsheetModalButtonConfirmText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

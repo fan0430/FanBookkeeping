@@ -33,6 +33,7 @@ interface GoogleSheetsService {
   readSheet: (spreadsheetId: string, sheetName: string) => Promise<any[]>;
   updateRow: (spreadsheetId: string, sheetName: string, rowIndex: number, data: any[]) => Promise<void>;
   deleteRow: (spreadsheetId: string, sheetName: string, rowIndex: number) => Promise<void>;
+  renameSheet: (spreadsheetId: string, newName: string) => Promise<void>;
   listSpreadsheets: () => Promise<SpreadsheetInfo[]>;
   getSpreadsheetInfo: (spreadsheetId: string) => Promise<SpreadsheetInfo>;
 }
@@ -193,6 +194,45 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
     } catch (error) {
       console.error('刪除資料列錯誤:', error);
       throw new Error('無法刪除資料列');
+    }
+  }
+
+  // 重新命名工作表
+  async renameSheet(spreadsheetId: string, newName: string): Promise<void> {
+    try {
+      // 先獲取試算表資訊來取得正確的 sheetId
+      const spreadsheetInfo = await this.getSpreadsheetInfo(spreadsheetId);
+      const firstSheet = spreadsheetInfo.sheets[0];
+      
+      if (!firstSheet) {
+        throw new Error('找不到工作表');
+      }
+
+      const response = await axios.post(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
+        {
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: {
+                  sheetId: firstSheet.properties.sheetId,
+                  title: newName,
+                },
+                fields: 'title',
+              },
+            },
+          ],
+        },
+        {
+          headers: this.getHeaders(),
+          timeout: 30000, // 30 秒超時
+        }
+      );
+
+      console.log('重新命名工作表成功:', response.data);
+    } catch (error) {
+      console.error('重新命名工作表錯誤:', error);
+      throw new Error('重新命名工作表失敗');
     }
   }
 
