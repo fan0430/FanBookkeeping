@@ -1,4 +1,5 @@
 import { ParsedBarcode } from '../types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // 產品類別定義
 const PRODUCT_CATEGORIES: { [key: string]: string } = {
@@ -138,6 +139,42 @@ const PRODUCT_CODES: { [key: string]: { [key: string]: string } } = {
   },
 };
 
+// 本地存儲的鍵名
+const CUSTOM_PRODUCTS_KEY = 'custom_products';
+
+// 獲取本地存儲的自定義產品
+export const getCustomProducts = async (): Promise<{ [key: string]: { [key: string]: string } }> => {
+  try {
+    const customProductsJson = await AsyncStorage.getItem(CUSTOM_PRODUCTS_KEY);
+    return customProductsJson ? JSON.parse(customProductsJson) : {};
+  } catch (error) {
+    console.error('讀取自定義產品失敗:', error);
+    return {};
+  }
+};
+
+// 保存自定義產品到本地存儲
+export const saveCustomProduct = async (category: string, productCode: string, productName: string): Promise<boolean> => {
+  try {
+    const customProducts = await getCustomProducts();
+    
+    // 如果該類別不存在，創建它
+    if (!customProducts[category]) {
+      customProducts[category] = {};
+    }
+    
+    // 添加新產品
+    customProducts[category][productCode] = productName;
+    
+    // 保存到本地存儲
+    await AsyncStorage.setItem(CUSTOM_PRODUCTS_KEY, JSON.stringify(customProducts));
+    return true;
+  } catch (error) {
+    console.error('保存自定義產品失敗:', error);
+    return false;
+  }
+};
+
 /**
  * 解析條碼格式
  * 格式：CAT-XXX-YYYYMMDD
@@ -256,10 +293,15 @@ export const getProductCategories = () => {
 };
 
 /**
- * 獲取指定類別的所有產品
+ * 獲取指定類別的所有產品（包括預設和自定義產品）
  */
-export const getProductsByCategory = (category: string) => {
-  return PRODUCT_CODES[category] || {};
+export const getProductsByCategory = async (category: string): Promise<{ [key: string]: string }> => {
+  const defaultProducts = PRODUCT_CODES[category] || {};
+  const customProducts = await getCustomProducts();
+  const categoryCustomProducts = customProducts[category] || {};
+  
+  // 合併預設產品和自定義產品
+  return { ...defaultProducts, ...categoryCustomProducts };
 };
 
 /**

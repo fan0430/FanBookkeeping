@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,15 +12,37 @@ import {
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { NavigationProps } from '../types';
-import { getProductCategories, getProductsByCategory, generateBarcode } from '../utils/productParser';
+import { getProductCategories, getProductsByCategory, generateBarcode, saveCustomProduct } from '../utils/productParser';
 
 const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [showBarcodeModal, setShowBarcodeModal] = useState(false);
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<{ code: string; name: string } | null>(null);
   const [productionDate, setProductionDate] = useState('');
+  
+  // 新增產品相關狀態
+  const [newProductName, setNewProductName] = useState('');
+  
+  // 產品列表狀態
+  const [products, setProducts] = useState<{ [key: string]: string }>({});
 
   const categories = getProductCategories();
+
+  // 當選擇的類別改變時，重新載入產品列表
+  useEffect(() => {
+    if (selectedCategory) {
+      loadProducts();
+    }
+  }, [selectedCategory]);
+
+  // 載入產品列表
+  const loadProducts = async () => {
+    if (selectedCategory) {
+      const categoryProducts = await getProductsByCategory(selectedCategory);
+      setProducts(categoryProducts);
+    }
+  };
 
   const handleCategorySelect = (category: string) => {
     setSelectedCategory(category);
@@ -61,6 +83,64 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
     );
     setShowBarcodeModal(false);
     setProductionDate('');
+  };
+
+  // 自動生成下一個產品代碼
+  const generateNextProductCode = (category: string): string => {
+    const existingCodes = Object.keys(products).map(code => parseInt(code));
+    
+    if (existingCodes.length === 0) {
+      return '001';
+    }
+    
+    const maxCode = Math.max(...existingCodes);
+    const nextCode = maxCode + 1;
+    return nextCode.toString().padStart(3, '0');
+  };
+
+  const handleAddProduct = async () => {
+    if (!selectedCategory) {
+      Alert.alert('錯誤', '請先選擇產品類別');
+      return;
+    }
+
+    if (!newProductName.trim()) {
+      Alert.alert('錯誤', '請輸入產品名稱');
+      return;
+    }
+
+    // 檢查產品名稱是否已存在
+    const existingProductNames = Object.values(products);
+    if (existingProductNames.includes(newProductName.trim())) {
+      Alert.alert('錯誤', '此產品名稱已存在，請使用其他名稱');
+      return;
+    }
+
+    // 自動生成產品代碼
+    const newProductCode = generateNextProductCode(selectedCategory);
+
+    // 保存到本地存儲
+    const success = await saveCustomProduct(selectedCategory, newProductCode, newProductName);
+    
+    if (success) {
+      Alert.alert(
+        '新增產品成功',
+        `產品代碼：${newProductCode}\n產品名稱：${newProductName}\n類別：${categories[selectedCategory]}`,
+        [
+          {
+            text: '確定',
+            onPress: async () => {
+              setShowAddProductModal(false);
+              setNewProductName('');
+              // 重新載入產品列表以顯示新產品
+              await loadProducts();
+            }
+          }
+        ]
+      );
+    } else {
+      Alert.alert('錯誤', '保存產品失敗，請重試');
+    }
   };
 
   const renderCategoryItem = (categoryCode: string, categoryName: string) => (
@@ -120,11 +200,19 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
 
         {selectedCategory && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              {categories[selectedCategory]} - 產品列表
-            </Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                {categories[selectedCategory]} - 產品列表
+              </Text>
+              <TouchableOpacity
+                style={styles.addProductButton}
+                onPress={() => setShowAddProductModal(true)}
+              >
+                <Text style={styles.addProductButtonText}>+ 新增產品</Text>
+              </TouchableOpacity>
+            </View>
             <View style={styles.productsContainer}>
-              {Object.entries(getProductsByCategory(selectedCategory)).map(([code, name]) => 
+              {Object.entries(products).map(([code, name]) => 
                 renderProductItem(code, name)
               )}
             </View>
@@ -187,6 +275,60 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* 新增產品 Modal */}
+      <Modal
+        visible={showAddProductModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAddProductModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>新增產品項目</Text>
+            
+            <View style={styles.productDisplay}>
+              <Text style={styles.productDisplayLabel}>產品類別:</Text>
+              <Text style={styles.productDisplayText}>
+                {categories[selectedCategory]}
+              </Text>
+              <Text style={styles.productDisplayLabel}>產品代碼:</Text>
+              <Text style={styles.productDisplayText}>
+                {generateNextProductCode(selectedCategory)} (自動生成)
+              </Text>
+            </View>
+            
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>產品名稱:</Text>
+              <TextInput
+                style={styles.dateInput}
+                value={newProductName}
+                onChangeText={setNewProductName}
+                placeholder="例如: 芒果"
+                maxLength={20}
+              />
+            </View>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setShowAddProductModal(false);
+                  setNewProductName('');
+                }}
+              >
+                <Text style={styles.modalButtonCancelText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={handleAddProduct}
+              >
+                <Text style={styles.modalButtonConfirmText}>新增產品</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -228,11 +370,28 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 30,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#212529',
     marginBottom: 15,
+  },
+  addProductButton: {
+    backgroundColor: '#28a745',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  addProductButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
   },
   categoriesContainer: {
     flexDirection: 'row',
