@@ -1,12 +1,40 @@
 import axios from 'axios';
 import { ParsedBarcode } from '../types';
 
+// 試算表資訊介面
+export interface SpreadsheetInfo {
+  spreadsheetId: string;
+  properties: {
+    title: string;
+    locale?: string;
+    timeZone?: string;
+    autoRecalc?: string;
+  };
+  sheets: Array<{
+    properties: {
+      sheetId: number;
+      title: string;
+      index: number;
+      sheetType: string;
+      gridProperties?: {
+        rowCount: number;
+        columnCount: number;
+      };
+    };
+  }>;
+  spreadsheetUrl: string;
+  createdTime?: string;
+  modifiedTime?: string;
+}
+
 interface GoogleSheetsService {
   createSpreadsheet: (title: string) => Promise<string>;
   appendRow: (spreadsheetId: string, sheetName: string, data: any[]) => Promise<void>;
   readSheet: (spreadsheetId: string, sheetName: string) => Promise<any[]>;
   updateRow: (spreadsheetId: string, sheetName: string, rowIndex: number, data: any[]) => Promise<void>;
   deleteRow: (spreadsheetId: string, sheetName: string, rowIndex: number) => Promise<void>;
+  listSpreadsheets: () => Promise<SpreadsheetInfo[]>;
+  getSpreadsheetInfo: (spreadsheetId: string) => Promise<SpreadsheetInfo>;
 }
 
 class GoogleSheetsServiceImpl implements GoogleSheetsService {
@@ -218,6 +246,84 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
     await this.appendRow(spreadsheetId, '產品資料', headers);
 
     return spreadsheetId;
+  }
+
+  // 列出用戶的所有試算表
+  async listSpreadsheets(): Promise<SpreadsheetInfo[]> {
+    try {
+      // 使用 Google Drive API 來列出試算表
+      const response = await axios.get(
+        'https://www.googleapis.com/drive/v3/files',
+        {
+          headers: this.getHeaders(),
+          params: {
+            q: "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
+            fields: 'files(id,name,createdTime,modifiedTime,webViewLink)',
+            orderBy: 'modifiedTime desc',
+            pageSize: 50
+          },
+          timeout: 30000, // 30 秒超時
+        }
+      );
+
+      // 轉換為 SpreadsheetInfo 格式
+      const spreadsheets: SpreadsheetInfo[] = response.data.files.map((file: any) => ({
+        spreadsheetId: file.id,
+        properties: {
+          title: file.name,
+        },
+        sheets: [], // 需要額外呼叫 API 來取得工作表資訊
+        spreadsheetUrl: file.webViewLink,
+        createdTime: file.createdTime,
+        modifiedTime: file.modifiedTime,
+      }));
+
+      return spreadsheets;
+    } catch (error: any) {
+      console.error('列出試算表錯誤:', error);
+      
+      // 提供更詳細的錯誤資訊
+      if (error.response) {
+        const status = error.response.status;
+        const data = error.response.data;
+        
+        if (status === 403) {
+          if (data?.error?.message?.includes('insufficient')) {
+            throw new Error('權限不足：請確保已啟用 Google Drive API 並授權應用程式存取');
+          } else if (data?.error?.message?.includes('quota')) {
+            throw new Error('API 配額已用完：請稍後再試');
+          } else {
+            throw new Error(`權限錯誤 (403)：${data?.error?.message || '請檢查 Google Cloud Console 設定'}`);
+          }
+        } else if (status === 401) {
+          throw new Error('認證失敗：請重新登入 Google 帳戶');
+        } else {
+          throw new Error(`API 錯誤 (${status})：${data?.error?.message || '請稍後再試'}`);
+        }
+      } else if (error.request) {
+        throw new Error('網路連線錯誤：請檢查網路連線');
+      } else {
+        throw new Error(`未知錯誤：${error.message}`);
+      }
+    }
+  }
+
+  // 取得特定試算表的詳細資訊
+  async getSpreadsheetInfo(spreadsheetId: string): Promise<SpreadsheetInfo> {
+    try {
+      const response = await axios.get(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`,
+        {
+          headers: this.getHeaders(),
+          timeout: 30000, // 30 秒超時
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error('取得試算表資訊錯誤:', error);
+      throw new Error('無法取得試算表資訊');
+    }
   }
 }
 

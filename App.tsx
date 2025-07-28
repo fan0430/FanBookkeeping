@@ -23,7 +23,10 @@ type ScreenType = 'mainSelect' | 'ledgerSelect' | 'home' | 'addTransaction' | 's
 
 // 在 App 啟動時初始化 Google Sign-In
 GoogleSignin.configure({
-  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  scopes: [
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/drive'
+  ],
   webClientId: '191329007466-3ep6o34nim2ouqg4kukre3irekh16t3q.apps.googleusercontent.com',
   offlineAccess: true,
 });

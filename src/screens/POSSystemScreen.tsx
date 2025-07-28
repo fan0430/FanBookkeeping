@@ -19,7 +19,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { NavigationProps, ParsedBarcode } from '../types';
 import { parseBarcode } from '../utils/productParser';
 import { useGoogleAuth } from '../context/GoogleAuthContext';
-import { googleSheetsService } from '../utils/googleSheetsService';
+import { googleSheetsService, SpreadsheetInfo } from '../utils/googleSheetsService';
 import { diagnoseGoogleAuth, testSignInWithDiagnosis, getQuickFixSuggestions, forceSignIn, checkOAuthConsentScreen } from '../utils/googleAuthTest';
 import { 
   getUserSpreadsheetId, 
@@ -44,6 +44,9 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
   const [isCreatingSpreadsheet, setIsCreatingSpreadsheet] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [amount, setAmount] = useState<string>('');
+  const [isLoadingSpreadsheets, setIsLoadingSpreadsheets] = useState(false);
+  const [spreadsheets, setSpreadsheets] = useState<SpreadsheetInfo[]>([]);
+  const [showSpreadsheetsModal, setShowSpreadsheetsModal] = useState(false);
 
   const { authState, signIn, signOut, getAccessToken } = useGoogleAuth();
 
@@ -382,6 +385,134 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
     }
   };
 
+  // 新增：測試 Google Drive API
+  const handleTestDriveApi = async () => {
+    try {
+      if (!authState.isSignedIn) {
+        Alert.alert('錯誤', '請先登入Google帳戶');
+        return;
+      }
+
+      const token = await getAccessToken();
+      if (!token) {
+        Alert.alert('錯誤', '無法取得存取權杖');
+        return;
+      }
+
+      Alert.alert('測試中', '正在測試 Google Drive API...');
+      
+      // 設定權杖
+      googleSheetsService.setAccessToken(token);
+      
+      // 測試列出試算表
+      const spreadsheets = await googleSheetsService.listSpreadsheets();
+      
+      let message = `✅ Google Drive API 測試成功！\n\n`;
+      message += `找到 ${spreadsheets.length} 個試算表\n\n`;
+      
+      if (spreadsheets.length > 0) {
+        message += `試算表列表:\n`;
+        spreadsheets.slice(0, 5).forEach((sheet, index) => {
+          message += `${index + 1}. ${sheet.properties.title}\n`;
+        });
+        
+        if (spreadsheets.length > 5) {
+          message += `... 還有 ${spreadsheets.length - 5} 個試算表`;
+        }
+      } else {
+        message += `您的 Google Drive 中沒有試算表`;
+      }
+      
+      Alert.alert('Google Drive API 測試完成', message);
+    } catch (error: any) {
+      console.error('Google Drive API 測試錯誤:', error);
+      
+      let errorMessage = 'Google Drive API 測試失敗\n\n';
+      
+      if (error.message) {
+        errorMessage += `錯誤訊息: ${error.message}\n\n`;
+      }
+      
+      errorMessage += `🔧 解決方案:\n`;
+      errorMessage += `1. 前往 Google Cloud Console\n`;
+      errorMessage += `2. 啟用 Google Drive API\n`;
+      errorMessage += `3. 重新登入 Google 帳戶\n`;
+      errorMessage += `4. 重新授權應用程式`;
+      
+      Alert.alert('Google Drive API 測試失敗', errorMessage);
+    }
+  };
+
+  // 新增：查看雲端資料夾
+  const handleViewCloudFolder = async () => {
+    try {
+      if (!authState.isSignedIn) {
+        Alert.alert('錯誤', '請先登入Google帳戶');
+        return;
+      }
+
+      setIsLoadingSpreadsheets(true);
+      setShowSpreadsheetsModal(true);
+
+      const token = await getAccessToken();
+      if (token) {
+        googleSheetsService.setAccessToken(token);
+      }
+
+      const spreadsheetsList = await googleSheetsService.listSpreadsheets();
+      setSpreadsheets(spreadsheetsList);
+      
+      console.log('載入試算表列表:', spreadsheetsList);
+    } catch (error) {
+      console.error('載入試算表列表錯誤:', error);
+      Alert.alert('錯誤', '無法載入試算表列表，請重試');
+      setShowSpreadsheetsModal(false);
+    } finally {
+      setIsLoadingSpreadsheets(false);
+    }
+  };
+
+  // 新增：選擇試算表
+  const handleSelectSpreadsheet = async (spreadsheet: SpreadsheetInfo) => {
+    try {
+      if (!authState.user?.id) {
+        Alert.alert('錯誤', '用戶資訊不完整');
+        return;
+      }
+
+      // 儲存選擇的試算表資訊
+      await saveUserSpreadsheetId(
+        authState.user.id,
+        authState.user.email,
+        authState.user.name,
+        spreadsheet.spreadsheetId,
+        spreadsheet.properties.title
+      );
+      
+      setSpreadsheetId(spreadsheet.spreadsheetId);
+      
+      // 重新載入試算表資訊
+      await loadUserSpreadsheetInfo();
+      
+      setShowSpreadsheetsModal(false);
+      
+      Alert.alert('成功', `已選擇試算表：${spreadsheet.properties.title}`);
+    } catch (error) {
+      console.error('選擇試算表錯誤:', error);
+      Alert.alert('錯誤', '選擇試算表失敗，請重試');
+    }
+  };
+
+  // 新增：開啟試算表
+  const handleOpenSpreadsheet = (spreadsheet: SpreadsheetInfo) => {
+    if (spreadsheet.spreadsheetUrl) {
+      Linking.openURL(spreadsheet.spreadsheetUrl);
+    } else {
+      const url = `https://docs.google.com/spreadsheets/d/${spreadsheet.spreadsheetId}`;
+      Linking.openURL(url);
+    }
+  };
+
   const handleGoogleSignOut = async () => {
     try {
       await signOut();
@@ -602,18 +733,29 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
 
               <View style={styles.cloudActions}>
                 {!spreadsheetId ? (
-                  <TouchableOpacity
-                    style={[
-                      styles.createSheetButton,
-                      isCreatingSpreadsheet && styles.createSheetButtonDisabled
-                    ]}
-                    onPress={handleCreateSpreadsheet}
-                    disabled={isCreatingSpreadsheet}
-                  >
-                    <Text style={styles.createSheetButtonText}>
-                      {isCreatingSpreadsheet ? '⏳ 建立中...' : '📊 建立試算表'}
-                    </Text>
-                  </TouchableOpacity>
+                  <View style={styles.spreadsheetActions}>
+                    <TouchableOpacity
+                      style={[
+                        styles.createSheetButton,
+                        isCreatingSpreadsheet && styles.createSheetButtonDisabled
+                      ]}
+                      onPress={handleCreateSpreadsheet}
+                      disabled={isCreatingSpreadsheet}
+                    >
+                      <Text style={styles.createSheetButtonText}>
+                        {isCreatingSpreadsheet ? '⏳ 建立中...' : '📊 建立試算表'}
+                      </Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      style={styles.viewFolderButton}
+                      onPress={handleViewCloudFolder}
+                    >
+                      <Text style={styles.viewFolderButtonText}>
+                        📁 查看雲端資料夾
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : (
                   <View style={styles.spreadsheetInfo}>
                     <TouchableOpacity 
@@ -657,6 +799,16 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                     </TouchableOpacity>
                   </View>
                 )}
+                
+                {/* 查看雲端資料夾按鈕 - 始終顯示 */}
+                <TouchableOpacity
+                  style={styles.viewFolderButton}
+                  onPress={handleViewCloudFolder}
+                >
+                  <Text style={styles.viewFolderButtonText}>
+                    📁 查看雲端資料夾
+                  </Text>
+                </TouchableOpacity>
               </View>
 
               <TouchableOpacity
@@ -724,6 +876,16 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                   onPress={handleTestApiConnection}
                 >
                   <Text style={styles.diagnosticButtonText}>🌐 API 測試</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {/* Google Drive API 測試按鈕 */}
+              <View style={styles.diagnosticButtons}>
+                <TouchableOpacity
+                  style={styles.diagnosticButton}
+                  onPress={handleTestDriveApi}
+                >
+                  <Text style={styles.diagnosticButtonText}>📁 Drive API 測試</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1105,6 +1267,81 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
           </View>
         </Modal>
       )}
+
+      {/* 試算表列表 Modal */}
+      <Modal
+        visible={showSpreadsheetsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSpreadsheetsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.spreadsheetsModalContent}>
+            <View style={styles.spreadsheetsModalHeader}>
+              <Text style={styles.spreadsheetsModalTitle}>雲端試算表</Text>
+              <TouchableOpacity
+                style={styles.spreadsheetsModalCloseButton}
+                onPress={() => setShowSpreadsheetsModal(false)}
+              >
+                <Text style={styles.spreadsheetsModalCloseButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {isLoadingSpreadsheets ? (
+              <View style={styles.spreadsheetsLoadingContainer}>
+                <Text style={styles.spreadsheetsLoadingSpinner}>⏳</Text>
+                <Text style={styles.spreadsheetsLoadingText}>正在載入試算表...</Text>
+              </View>
+            ) : spreadsheets.length === 0 ? (
+              <View style={styles.spreadsheetsEmptyContainer}>
+                <Text style={styles.spreadsheetsEmptyText}>📁 沒有找到試算表</Text>
+                <Text style={styles.spreadsheetsEmptySubText}>
+                  您的 Google Drive 中還沒有試算表，請先建立一個試算表。
+                </Text>
+              </View>
+            ) : (
+              <ScrollView style={styles.spreadsheetsList}>
+                {spreadsheets.map((spreadsheet, index) => (
+                  <View key={spreadsheet.spreadsheetId} style={styles.spreadsheetItem}>
+                    <View style={styles.spreadsheetItemHeader}>
+                      <Text style={styles.spreadsheetItemTitle}>
+                        📊 {spreadsheet.properties.title}
+                      </Text>
+                      <Text style={styles.spreadsheetItemId}>
+                        ID: {spreadsheet.spreadsheetId}
+                      </Text>
+                    </View>
+                    
+                    {spreadsheet.modifiedTime && (
+                      <Text style={styles.spreadsheetItemDate}>
+                        修改時間: {new Date(spreadsheet.modifiedTime).toLocaleDateString('zh-TW')}
+                      </Text>
+                    )}
+                    
+                    <View style={styles.spreadsheetItemActions}>
+                      <TouchableOpacity
+                        style={styles.spreadsheetItemActionButton}
+                        onPress={() => handleSelectSpreadsheet(spreadsheet)}
+                      >
+                        <Text style={styles.spreadsheetItemActionButtonText}>✅ 選擇</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        style={styles.spreadsheetItemActionButton}
+                        onPress={() => handleOpenSpreadsheet(spreadsheet)}
+                      >
+                        <Text style={styles.spreadsheetItemActionButtonText}>🔗 開啟</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+                {/* 底部間距元素 */}
+                <View style={styles.spreadsheetListBottomSpacer} />
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -1747,6 +1984,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
+  viewFolderButton: {
+    backgroundColor: '#17a2b8',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  viewFolderButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   diagnosticButtons: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -1851,6 +2100,136 @@ const styles = StyleSheet.create({
     padding: 10,
     fontSize: 14,
     color: '#212529',
+  },
+  // 試算表列表 Modal 樣式
+  spreadsheetsModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    width: '95%',
+    maxWidth: 500,
+    maxHeight: '90%',
+    minHeight: 400,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  spreadsheetsModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    paddingVertical: 25,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  spreadsheetsModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#212529',
+  },
+  spreadsheetsModalCloseButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#f8f9fa',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  spreadsheetsModalCloseButtonText: {
+    fontSize: 18,
+    color: '#6c757d',
+    fontWeight: 'bold',
+  },
+  spreadsheetsLoadingContainer: {
+    padding: 60,
+    alignItems: 'center',
+    minHeight: 200,
+  },
+  spreadsheetsLoadingSpinner: {
+    fontSize: 40,
+    marginBottom: 15,
+  },
+  spreadsheetsLoadingText: {
+    fontSize: 16,
+    color: '#6c757d',
+    textAlign: 'center',
+  },
+  spreadsheetsEmptyContainer: {
+    padding: 60,
+    alignItems: 'center',
+    minHeight: 200,
+  },
+  spreadsheetsEmptyText: {
+    fontSize: 18,
+    color: '#6c757d',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  spreadsheetsEmptySubText: {
+    fontSize: 14,
+    color: '#6c757d',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  spreadsheetsList: {
+    flex: 1,
+    padding: 20,
+    paddingBottom: 40,
+    minHeight: 300,
+  },
+  spreadsheetItem: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 20,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  spreadsheetItemHeader: {
+    marginBottom: 8,
+  },
+  spreadsheetItemTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#212529',
+    marginBottom: 6,
+  },
+  spreadsheetItemId: {
+    fontSize: 13,
+    color: '#6c757d',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    marginBottom: 4,
+  },
+  spreadsheetItemDate: {
+    fontSize: 13,
+    color: '#6c757d',
+    marginBottom: 12,
+  },
+  spreadsheetItemActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 8,
+  },
+  spreadsheetItemActionButton: {
+    backgroundColor: '#007bff',
+    padding: 10,
+    borderRadius: 6,
+    alignItems: 'center',
+    flex: 1,
+  },
+  spreadsheetItemActionButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  spreadsheetListBottomSpacer: {
+    height: 20,
   },
 });
 
