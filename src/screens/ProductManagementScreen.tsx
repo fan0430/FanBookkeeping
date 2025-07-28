@@ -12,22 +12,31 @@ import {
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { NavigationProps } from '../types';
-import { getProductCategories, getProductsByCategory, generateBarcode, saveCustomProduct } from '../utils/productParser';
+import { getProductCategories, getProductsByCategory, generateBarcode, saveCustomProduct, saveCustomCategory } from '../utils/productParser';
 
 const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [showBarcodeModal, setShowBarcodeModal] = useState(false);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<{ code: string; name: string } | null>(null);
   const [productionDate, setProductionDate] = useState('');
   
   // 新增產品相關狀態
   const [newProductName, setNewProductName] = useState('');
   
-  // 產品列表狀態
+  // 新增類別相關狀態
+  const [newCategoryCode, setNewCategoryCode] = useState('');
+  const [newCategoryName, setNewCategoryName] = useState('');
+  
+  // 產品列表和類別狀態
   const [products, setProducts] = useState<{ [key: string]: string }>({});
+  const [categories, setCategories] = useState<{ [key: string]: string }>({});
 
-  const categories = getProductCategories();
+  // 當組件載入時，載入產品類別
+  useEffect(() => {
+    loadCategories();
+  }, []);
 
   // 當選擇的類別改變時，重新載入產品列表
   useEffect(() => {
@@ -35,6 +44,12 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
       loadProducts();
     }
   }, [selectedCategory]);
+
+  // 載入產品類別
+  const loadCategories = async () => {
+    const allCategories = await getProductCategories();
+    setCategories(allCategories);
+  };
 
   // 載入產品列表
   const loadProducts = async () => {
@@ -143,6 +158,57 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
     }
   };
 
+  const handleAddCategory = async () => {
+    if (!newCategoryCode.trim() || !newCategoryName.trim()) {
+      Alert.alert('錯誤', '請填寫完整的類別資訊');
+      return;
+    }
+
+    // 驗證類別代碼格式 (3位大寫字母)
+    const codePattern = /^[A-Z]{3}$/;
+    if (!codePattern.test(newCategoryCode)) {
+      Alert.alert('錯誤', '類別代碼應為3位大寫字母，例如：ABC');
+      return;
+    }
+
+    // 檢查類別代碼是否已存在
+    if (categories[newCategoryCode]) {
+      Alert.alert('錯誤', '此類別代碼已存在，請使用其他代碼');
+      return;
+    }
+
+    // 檢查類別名稱是否已存在
+    const existingCategoryNames = Object.values(categories);
+    if (existingCategoryNames.includes(newCategoryName.trim())) {
+      Alert.alert('錯誤', '此類別名稱已存在，請使用其他名稱');
+      return;
+    }
+
+    // 保存到本地存儲
+    const success = await saveCustomCategory(newCategoryCode, newCategoryName);
+    
+    if (success) {
+      Alert.alert(
+        '新增類別成功',
+        `類別代碼：${newCategoryCode}\n類別名稱：${newCategoryName}`,
+        [
+          {
+            text: '確定',
+            onPress: async () => {
+              setShowAddCategoryModal(false);
+              setNewCategoryCode('');
+              setNewCategoryName('');
+              // 重新載入類別列表
+              await loadCategories();
+            }
+          }
+        ]
+      );
+    } else {
+      Alert.alert('錯誤', '保存類別失敗，請重試');
+    }
+  };
+
   const renderCategoryItem = (categoryCode: string, categoryName: string) => (
     <TouchableOpacity
       key={categoryCode}
@@ -190,7 +256,15 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
 
       <ScrollView style={styles.content}>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>選擇產品類別</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>選擇產品類別</Text>
+            <TouchableOpacity
+              style={styles.addCategoryButton}
+              onPress={() => setShowAddCategoryModal(true)}
+            >
+              <Text style={styles.addCategoryButtonText}>+ 新增類別</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.categoriesContainer}>
             {Object.entries(categories).map(([code, name]) => 
               renderCategoryItem(code, name)
@@ -329,6 +403,62 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* 新增類別 Modal */}
+      <Modal
+        visible={showAddCategoryModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAddCategoryModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>新增產品類別</Text>
+            
+                         <View style={styles.inputContainer}>
+               <Text style={styles.inputLabel}>類別代碼 (3位大寫字母):</Text>
+               <TextInput
+                 style={styles.dateInput}
+                 value={newCategoryCode}
+                 onChangeText={setNewCategoryCode}
+                 placeholder="例如: ABC"
+                 maxLength={3}
+                 autoCapitalize="characters"
+               />
+             </View>
+
+             <View style={styles.inputContainer}>
+               <Text style={styles.inputLabel}>類別名稱:</Text>
+               <TextInput
+                 style={styles.dateInput}
+                 value={newCategoryName}
+                 onChangeText={setNewCategoryName}
+                 placeholder="例如: 水果"
+                 maxLength={20}
+               />
+             </View>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setShowAddCategoryModal(false);
+                  setNewCategoryCode('');
+                  setNewCategoryName('');
+                }}
+              >
+                <Text style={styles.modalButtonCancelText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={handleAddCategory}
+              >
+                <Text style={styles.modalButtonConfirmText}>新增類別</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -389,6 +519,17 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   addProductButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  addCategoryButton: {
+    backgroundColor: '#17a2b8',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  addCategoryButtonText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '500',

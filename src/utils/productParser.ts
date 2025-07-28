@@ -141,6 +141,40 @@ const PRODUCT_CODES: { [key: string]: { [key: string]: string } } = {
 
 // 本地存儲的鍵名
 const CUSTOM_PRODUCTS_KEY = 'custom_products';
+const CUSTOM_CATEGORIES_KEY = 'custom_categories';
+
+// 獲取本地存儲的自定義產品類別
+export const getCustomCategories = async (): Promise<{ [key: string]: string }> => {
+  try {
+    const customCategoriesJson = await AsyncStorage.getItem(CUSTOM_CATEGORIES_KEY);
+    return customCategoriesJson ? JSON.parse(customCategoriesJson) : {};
+  } catch (error) {
+    console.error('讀取自定義產品類別失敗:', error);
+    return {};
+  }
+};
+
+// 保存自定義產品類別到本地存儲
+export const saveCustomCategory = async (categoryCode: string, categoryName: string): Promise<boolean> => {
+  try {
+    const customCategories = await getCustomCategories();
+    
+    // 檢查類別代碼是否已存在
+    if (customCategories[categoryCode] || PRODUCT_CATEGORIES[categoryCode]) {
+      return false; // 類別代碼已存在
+    }
+    
+    // 添加新類別
+    customCategories[categoryCode] = categoryName;
+    
+    // 保存到本地存儲
+    await AsyncStorage.setItem(CUSTOM_CATEGORIES_KEY, JSON.stringify(customCategories));
+    return true;
+  } catch (error) {
+    console.error('保存自定義產品類別失敗:', error);
+    return false;
+  }
+};
 
 // 獲取本地存儲的自定義產品
 export const getCustomProducts = async (): Promise<{ [key: string]: { [key: string]: string } }> => {
@@ -223,7 +257,7 @@ export const parseBarcode = (barcode: string): ParsedBarcode => {
       categoryName: '',
       productCode,
       productName: '',
-      productionDate,
+      productionDate: '',
       formattedDate: '',
       isValid: false,
       error: `未知的產品類別：${category}`,
@@ -239,7 +273,7 @@ export const parseBarcode = (barcode: string): ParsedBarcode => {
       categoryName,
       productCode,
       productName: '',
-      productionDate,
+      productionDate: '',
       formattedDate: '',
       isValid: false,
       error: `未知的產品代碼：${productCode}`,
@@ -286,10 +320,14 @@ export const parseBarcode = (barcode: string): ParsedBarcode => {
 };
 
 /**
- * 獲取所有產品類別
+ * 獲取所有產品類別（包括預設和自定義）
  */
-export const getProductCategories = () => {
-  return PRODUCT_CATEGORIES;
+export const getProductCategories = async (): Promise<{ [key: string]: string }> => {
+  const defaultCategories = PRODUCT_CATEGORIES;
+  const customCategories = await getCustomCategories();
+  
+  // 合併預設類別和自定義類別
+  return { ...defaultCategories, ...customCategories };
 };
 
 /**
