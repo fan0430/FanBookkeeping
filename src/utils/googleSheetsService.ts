@@ -169,7 +169,7 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
   }
 
   // 將掃描的產品資料新增到試算表
-  async addProductToSheet(spreadsheetId: string, product: ParsedBarcode): Promise<void> {
+  async addProductToSheet(spreadsheetId: string, product: ParsedBarcode, amount?: string): Promise<void> {
     if (!product.isValid) {
       throw new Error('產品資料無效');
     }
@@ -182,6 +182,7 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
       product.productName,
       product.productionDate,
       product.formattedDate,
+      amount || '', // 販售價格
     ];
 
     await this.appendRow(spreadsheetId, '產品資料', rowData);
@@ -190,7 +191,7 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
   // 建立產品資料試算表
   async createProductSpreadsheet(): Promise<string> {
     const spreadsheetId = await this.createSpreadsheet('POS系統產品資料');
-    
+
     // 新增標題列
     const headers = [
       '掃描時間',
@@ -200,10 +201,11 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
       '產品名稱',
       '生產日期',
       '格式化日期',
+      '販售價格',
     ];
-    
+
     await this.appendRow(spreadsheetId, '產品資料', headers);
-    
+
     return spreadsheetId;
   }
 }

@@ -41,6 +41,8 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
   const [manualInput, setManualInput] = useState('');
   const [spreadsheetId, setSpreadsheetId] = useState<string>('');
   const [spreadsheetInfo, setSpreadsheetInfo] = useState<UserSpreadsheet | null>(null);
+  const [isCreatingSpreadsheet, setIsCreatingSpreadsheet] = useState(false);
+  const [amount, setAmount] = useState<string>('');
 
   const { authState, signIn, signOut, getAccessToken } = useGoogleAuth();
 
@@ -144,6 +146,7 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
     setScannedData('');
     setParsedProduct(null);
     setManualInput('');
+    setAmount('');
     setShowResultModal(false);
     setShowCameraModal(false);
   };
@@ -425,6 +428,8 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
   // 實際建立試算表的函數
   const createNewSpreadsheet = async () => {
     try {
+      setIsCreatingSpreadsheet(true);
+      
       const token = await getAccessToken();
       if (token) {
         googleSheetsService.setAccessToken(token);
@@ -450,6 +455,8 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
     } catch (error) {
       console.error('建立試算表錯誤:', error);
       Alert.alert('錯誤', '建立試算表失敗，請重試');
+    } finally {
+      setIsCreatingSpreadsheet(false);
     }
   };
 
@@ -476,7 +483,7 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
         googleSheetsService.setAccessToken(token);
       }
 
-      await googleSheetsService.addProductToSheet(spreadsheetId, parsedProduct);
+      await googleSheetsService.addProductToSheet(spreadsheetId, parsedProduct, amount);
       
       // 更新試算表的最後使用時間
       if (authState.user?.id) {
@@ -522,8 +529,12 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
       [
         { text: '取消', style: 'cancel' },
         { 
-          text: '建立新試算表', 
-          onPress: () => handleCreateSpreadsheet()
+          text: isCreatingSpreadsheet ? '建立中...' : '建立新試算表', 
+          onPress: () => {
+            if (!isCreatingSpreadsheet) {
+              handleCreateSpreadsheet();
+            }
+          }
         },
         { 
           text: '開啟試算表', 
@@ -575,14 +586,23 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
               <View style={styles.cloudActions}>
                 {!spreadsheetId ? (
                   <TouchableOpacity
-                    style={styles.createSheetButton}
+                    style={[
+                      styles.createSheetButton,
+                      isCreatingSpreadsheet && styles.createSheetButtonDisabled
+                    ]}
                     onPress={handleCreateSpreadsheet}
+                    disabled={isCreatingSpreadsheet}
                   >
-                    <Text style={styles.createSheetButtonText}>📊 建立試算表</Text>
+                    <Text style={styles.createSheetButtonText}>
+                      {isCreatingSpreadsheet ? '⏳ 建立中...' : '📊 建立試算表'}
+                    </Text>
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.spreadsheetInfo}>
-                    <View style={styles.spreadsheetInfoTouchable}>
+                    <TouchableOpacity 
+                      style={styles.spreadsheetInfoTouchable}
+                      onPress={showSpreadsheetOptions}
+                    >
                       <Text style={styles.spreadsheetLabel}>試算表資訊 (點擊管理):</Text>
                       <Text style={styles.spreadsheetName}>{spreadsheetInfo?.spreadsheetName || '產品掃描記錄'}</Text>
                       <Text style={styles.spreadsheetId}>ID: {spreadsheetId}</Text>
@@ -591,14 +611,18 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                       <View style={styles.spreadsheetActions}>
                         <TouchableOpacity
                           style={styles.spreadsheetActionButton}
-                          onPress={handleCopySpreadsheetUrl}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            handleCopySpreadsheetUrl();
+                          }}
                         >
                           <Text style={styles.spreadsheetActionButtonText}>📋 複製</Text>
                         </TouchableOpacity>
                         
                         <TouchableOpacity
                           style={styles.spreadsheetActionButton}
-                          onPress={() => {
+                          onPress={(e) => {
+                            e.stopPropagation();
                             const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
                             Linking.openURL(url);
                           }}
@@ -613,7 +637,7 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                         </Text>
                       )}
                       <Text style={styles.spreadsheetHint}>點擊查看管理選項</Text>
-                    </View>
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
@@ -763,6 +787,38 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                     <Text style={styles.errorText}>❌ {parsedProduct.error}</Text>
                   </View>
                 )}
+                
+                {/* 金額輸入欄位 */}
+                {parsedProduct.isValid && (
+                  <View style={styles.amountInputContainer}>
+                    <Text style={styles.amountInputLabel}>販售價格:</Text>
+                    <TextInput
+                      style={styles.amountInput}
+                      placeholder="請輸入金額"
+                      value={amount}
+                      onChangeText={(text) => {
+                        // 只允許數字和小數點
+                        const numericText = text.replace(/[^0-9.]/g, '');
+                        
+                        // 確保只有一個小數點
+                        const parts = numericText.split('.');
+                        if (parts.length > 2) {
+                          return; // 如果有多個小數點，不更新
+                        }
+                        
+                        // 限制小數位數為2位
+                        if (parts.length === 2 && parts[1].length > 2) {
+                          return; // 如果小數位數超過2位，不更新
+                        }
+                        
+                        setAmount(numericText);
+                      }}
+                      keyboardType="numeric"
+                      returnKeyType="done"
+                    />
+                  </View>
+                )}
+                
                 {/* 只有登入、資料正確且有試算表才顯示上傳按鈕 */}
                 {authState.isSignedIn && parsedProduct.isValid && spreadsheetId && (
                   <UploadButton onPress={handleUploadToCloud} />
@@ -845,6 +901,37 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                     ) : (
                       <View style={styles.modalErrorContainer}>
                         <Text style={styles.modalErrorText}>❌ {parsedProduct.error}</Text>
+                      </View>
+                    )}
+
+                    {/* 金額輸入欄位 */}
+                    {parsedProduct.isValid && (
+                      <View style={styles.modalAmountInputContainer}>
+                        <Text style={styles.modalAmountInputLabel}>販售價格:</Text>
+                        <TextInput
+                          style={styles.modalAmountInput}
+                          placeholder="請輸入金額"
+                          value={amount}
+                          onChangeText={(text) => {
+                            // 只允許數字和小數點
+                            const numericText = text.replace(/[^0-9.]/g, '');
+                            
+                            // 確保只有一個小數點
+                            const parts = numericText.split('.');
+                            if (parts.length > 2) {
+                              return; // 如果有多個小數點，不更新
+                            }
+                            
+                            // 限制小數位數為2位
+                            if (parts.length === 2 && parts[1].length > 2) {
+                              return; // 如果小數位數超過2位，不更新
+                            }
+                            
+                            setAmount(numericText);
+                          }}
+                          keyboardType="numeric"
+                          returnKeyType="done"
+                        />
                       </View>
                     )}
 
@@ -976,6 +1063,23 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* 載入遮罩 */}
+      {isCreatingSpreadsheet && (
+        <Modal
+          visible={isCreatingSpreadsheet}
+          transparent={true}
+          animationType="fade"
+        >
+          <View style={styles.loadingOverlay}>
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingSpinner}>⏳</Text>
+              <Text style={styles.loadingText}>正在建立試算表...</Text>
+              <Text style={styles.loadingSubText}>請稍候，不要關閉應用程式</Text>
+            </View>
+          </View>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 };
@@ -1098,6 +1202,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  createSheetButtonDisabled: {
+    backgroundColor: '#6c757d',
+    opacity: 0.6,
+  },
   spreadsheetInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1146,6 +1254,15 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#dee2e6',
+    // 添加點擊效果
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
   },
   spreadsheetHint: {
     fontSize: 12,
@@ -1614,6 +1731,89 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  // 載入遮罩樣式
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 30,
+    alignItems: 'center',
+    minWidth: 250,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  loadingSpinner: {
+    fontSize: 40,
+    marginBottom: 15,
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#212529',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  loadingSubText: {
+    fontSize: 14,
+    color: '#6c757d',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  // 金額輸入欄位樣式
+  amountInputContainer: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#dee2e6',
+  },
+  amountInputLabel: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  amountInput: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 6,
+    padding: 12,
+    fontSize: 16,
+    color: '#212529',
+  },
+  // Modal 中金額輸入欄位樣式
+  modalAmountInputContainer: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#dee2e6',
+  },
+  modalAmountInputLabel: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  modalAmountInput: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 6,
+    padding: 10,
+    fontSize: 14,
+    color: '#212529',
   },
 });
 
