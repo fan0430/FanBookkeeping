@@ -216,7 +216,7 @@ export const saveCustomProduct = async (category: string, productCode: string, p
  * XXX: 產品代碼 (3位)
  * YYYYMMDD: 生產日期 (8位)
  */
-export const parseBarcode = (barcode: string): ParsedBarcode => {
+export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
   // 基本驗證
   if (!barcode || typeof barcode !== 'string') {
     return {
@@ -250,8 +250,11 @@ export const parseBarcode = (barcode: string): ParsedBarcode => {
 
   const [, category, productCode, productionDate] = match;
 
+  // 獲取所有產品類別（包括預設和自定義）
+  const allCategories = await getProductCategories();
+  
   // 檢查類別是否存在
-  if (!PRODUCT_CATEGORIES[category]) {
+  if (!allCategories[category]) {
     return {
       category,
       categoryName: '',
@@ -264,10 +267,13 @@ export const parseBarcode = (barcode: string): ParsedBarcode => {
     };
   }
 
-  const categoryName = PRODUCT_CATEGORIES[category];
+  const categoryName = allCategories[category];
 
+  // 獲取指定類別的所有產品（包括預設和自定義產品）
+  const allProducts = await getProductsByCategory(category);
+  
   // 檢查產品代碼是否存在
-  if (!PRODUCT_CODES[category] || !PRODUCT_CODES[category][productCode]) {
+  if (!allProducts[productCode]) {
     return {
       category,
       categoryName,
@@ -280,7 +286,7 @@ export const parseBarcode = (barcode: string): ParsedBarcode => {
     };
   }
 
-  const productName = PRODUCT_CODES[category][productCode];
+  const productName = allProducts[productCode];
 
   // 驗證日期格式
   const year = parseInt(productionDate.substring(0, 4));

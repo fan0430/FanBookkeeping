@@ -174,8 +174,19 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
       throw new Error('產品資料無效');
     }
 
+    // 取得台灣時間 (UTC+8)
+    const now = new Date();
+    const taiwanTime = new Date(now.getTime() + (8 * 60 * 60 * 1000)); // UTC+8
+    const year = taiwanTime.getUTCFullYear();
+    const month = String(taiwanTime.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(taiwanTime.getUTCDate()).padStart(2, '0');
+    const hours = String(taiwanTime.getUTCHours()).padStart(2, '0');
+    const minutes = String(taiwanTime.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(taiwanTime.getUTCSeconds()).padStart(2, '0');
+    const taiwanTimeString = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
     const rowData = [
-      new Date().toISOString(), // 掃描時間
+      taiwanTimeString, // 掃描時間 (台灣時間)
       product.category,
       product.categoryName,
       product.productCode,

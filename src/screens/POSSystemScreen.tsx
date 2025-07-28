@@ -42,6 +42,7 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
   const [spreadsheetId, setSpreadsheetId] = useState<string>('');
   const [spreadsheetInfo, setSpreadsheetInfo] = useState<UserSpreadsheet | null>(null);
   const [isCreatingSpreadsheet, setIsCreatingSpreadsheet] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [amount, setAmount] = useState<string>('');
 
   const { authState, signIn, signOut, getAccessToken } = useGoogleAuth();
@@ -131,12 +132,12 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
     }
   };
 
-  const handleManualInput = () => {
+  const handleManualInput = async () => {
     if (!manualInput.trim()) {
       Alert.alert('錯誤', '請輸入條碼內容');
       return;
     }
-    const parsed = parseBarcode(manualInput);
+    const parsed = await parseBarcode(manualInput);
     setScannedData(manualInput);
     setParsedProduct(parsed);
     setShowResultModal(true);
@@ -158,11 +159,11 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
     }
   };
 
-  const onBarcodeRead = (event: any) => {
+  const onBarcodeRead = async (event: any) => {
     console.log('Barcode read event:', event);
     const { data } = event;
     if (data) {
-      const parsed = parseBarcode(data);
+      const parsed = await parseBarcode(data);
       setScannedData(data);
       setParsedProduct(parsed);
       setShowCameraModal(false);
@@ -478,6 +479,14 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
         return;
       }
 
+      // 檢查販售金額是否已輸入
+      if (!amount.trim()) {
+        Alert.alert('錯誤', '請輸入販售金額');
+        return;
+      }
+
+      setIsUploading(true);
+
       const token = await getAccessToken();
       if (token) {
         googleSheetsService.setAccessToken(token);
@@ -494,16 +503,24 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
     } catch (error) {
       console.error('上傳資料錯誤:', error);
       Alert.alert('錯誤', '上傳資料失敗，請重試');
+    } finally {
+      setIsUploading(false);
     }
   };
 
   // 上傳到雲端按鈕元件
   const UploadButton = ({ onPress }: { onPress: () => void }) => (
     <TouchableOpacity
-      style={styles.uploadButton}
+      style={[
+        styles.uploadButton,
+        isUploading && styles.uploadButtonDisabled
+      ]}
       onPress={onPress}
+      disabled={isUploading}
     >
-      <Text style={styles.uploadButtonText}>☁️ 上傳到雲端</Text>
+      <Text style={styles.uploadButtonText}>
+        {isUploading ? '⏳ 上傳中...' : '☁️ 上傳到雲端'}
+      </Text>
     </TouchableOpacity>
   );
 
@@ -791,10 +808,10 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                 {/* 金額輸入欄位 */}
                 {parsedProduct.isValid && (
                   <View style={styles.amountInputContainer}>
-                    <Text style={styles.amountInputLabel}>販售價格:</Text>
+                    <Text style={styles.amountInputLabel}>販售價格: <Text style={styles.requiredText}>*</Text></Text>
                     <TextInput
                       style={styles.amountInput}
-                      placeholder="請輸入金額"
+                      placeholder="請輸入金額 (必填)"
                       value={amount}
                       onChangeText={(text) => {
                         // 只允許數字和小數點
@@ -907,10 +924,10 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                     {/* 金額輸入欄位 */}
                     {parsedProduct.isValid && (
                       <View style={styles.modalAmountInputContainer}>
-                        <Text style={styles.modalAmountInputLabel}>販售價格:</Text>
+                        <Text style={styles.modalAmountInputLabel}>販售價格: <Text style={styles.requiredText}>*</Text></Text>
                         <TextInput
                           style={styles.modalAmountInput}
-                          placeholder="請輸入金額"
+                          placeholder="請輸入金額 (必填)"
                           value={amount}
                           onChangeText={(text) => {
                             // 只允許數字和小數點
@@ -938,10 +955,16 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                     {/* 只有登入、資料正確且有試算表才顯示上傳按鈕 */}
                     {authState.isSignedIn && parsedProduct.isValid && spreadsheetId && (
                       <TouchableOpacity
-                        style={styles.modalUploadButton}
+                        style={[
+                          styles.modalUploadButton,
+                          isUploading && styles.modalUploadButtonDisabled
+                        ]}
                         onPress={handleUploadToCloud}
+                        disabled={isUploading}
                       >
-                        <Text style={styles.modalUploadButtonText}>☁️ 上傳到雲端</Text>
+                        <Text style={styles.modalUploadButtonText}>
+                          {isUploading ? '⏳ 上傳中...' : '☁️ 上傳到雲端'}
+                        </Text>
                       </TouchableOpacity>
                     )}
                     
@@ -1065,16 +1088,18 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
       </Modal>
 
       {/* 載入遮罩 */}
-      {isCreatingSpreadsheet && (
+      {(isCreatingSpreadsheet || isUploading) && (
         <Modal
-          visible={isCreatingSpreadsheet}
+          visible={isCreatingSpreadsheet || isUploading}
           transparent={true}
           animationType="fade"
         >
           <View style={styles.loadingOverlay}>
             <View style={styles.loadingContainer}>
               <Text style={styles.loadingSpinner}>⏳</Text>
-              <Text style={styles.loadingText}>正在建立試算表...</Text>
+              <Text style={styles.loadingText}>
+                {isCreatingSpreadsheet ? '正在建立試算表...' : '正在上傳資料...'}
+              </Text>
               <Text style={styles.loadingSubText}>請稍候，不要關閉應用程式</Text>
             </View>
           </View>
@@ -1601,6 +1626,10 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: 10,
   },
+  uploadButtonDisabled: {
+    backgroundColor: '#6c757d',
+    opacity: 0.6,
+  },
   uploadButtonText: {
     color: '#fff',
     fontSize: 16,
@@ -1661,6 +1690,10 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     alignItems: 'center',
     marginTop: 10,
+  },
+  modalUploadButtonDisabled: {
+    backgroundColor: '#6c757d',
+    opacity: 0.6,
   },
   modalUploadButtonText: {
     color: '#fff',
@@ -1783,6 +1816,10 @@ const styles = StyleSheet.create({
     color: '#6c757d',
     fontWeight: '500',
     marginBottom: 8,
+  },
+  requiredText: {
+    color: '#dc3545',
+    fontWeight: 'bold',
   },
   amountInput: {
     backgroundColor: '#f8f9fa',
