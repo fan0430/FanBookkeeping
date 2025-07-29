@@ -18,9 +18,9 @@ buildscript {
     }
 }
 
-//project.ext.react = [
-//        entryFile: "index.js",
-//        nodeExecutableAndArgs: ["/opt/homebrew/bin/node"]
-//]
+project.ext.react = [
+        entryFile: "index.js",
+        nodeExecutableAndArgs: ["/opt/homebrew/bin/node"]
+]
 
 apply plugin: "com.facebook.react.rootproject"

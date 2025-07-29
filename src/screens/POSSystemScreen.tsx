@@ -43,6 +43,7 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
   const [spreadsheetInfo, setSpreadsheetInfo] = useState<UserSpreadsheet | null>(null);
   const [isCreatingSpreadsheet, setIsCreatingSpreadsheet] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSelectingSpreadsheet, setIsSelectingSpreadsheet] = useState(false);
   const [amount, setAmount] = useState<string>('');
   const [isLoadingSpreadsheets, setIsLoadingSpreadsheets] = useState(false);
   const [spreadsheets, setSpreadsheets] = useState<SpreadsheetInfo[]>([]);
@@ -482,6 +483,12 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
         return;
       }
 
+      // 先關閉 Modal 並顯示 loading
+      setShowSpreadsheetsModal(false);
+      
+      // 顯示 loading 遮罩
+      setIsSelectingSpreadsheet(true);
+
       // 儲存選擇的試算表資訊
       await saveUserSpreadsheetId(
         authState.user.id,
@@ -496,11 +503,13 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
       // 重新載入試算表資訊
       await loadUserSpreadsheetInfo();
       
-      setShowSpreadsheetsModal(false);
+      // 隱藏 loading 遮罩
+      setIsSelectingSpreadsheet(false);
       
       Alert.alert('成功', `已選擇試算表：${spreadsheet.properties.title}`);
     } catch (error) {
       console.error('選擇試算表錯誤:', error);
+      setIsSelectingSpreadsheet(false);
       Alert.alert('錯誤', '選擇試算表失敗，請重試');
     }
   };
@@ -704,12 +713,17 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
       [
         { text: '取消', style: 'cancel' },
         { 
-          text: isCreatingSpreadsheet ? '建立中...' : '建立新試算表', 
+          text: '建立新試算表', 
+          style: 'destructive',
           onPress: () => {
             if (!isCreatingSpreadsheet) {
               handleCreateSpreadsheet();
             }
           }
+        },
+        { 
+          text: '選擇其他試算表', 
+          onPress: () => handleViewCloudFolder()
         },
         { 
           text: '開啟試算表', 
@@ -773,67 +787,51 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                         {isCreatingSpreadsheet ? '⏳ 建立中...' : '📊 建立試算表'}
                       </Text>
                     </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                      style={styles.viewFolderButton}
-                      onPress={handleViewCloudFolder}
-                    >
-                      <Text style={styles.viewFolderButtonText}>
-                        📁 查看雲端資料夾
-                      </Text>
-                    </TouchableOpacity>
                   </View>
                 ) : (
                   <View style={styles.spreadsheetInfo}>
-                    <TouchableOpacity 
-                      style={styles.spreadsheetInfoTouchable}
-                      onPress={showSpreadsheetOptions}
-                    >
-                      <Text style={styles.spreadsheetLabel}>試算表資訊 (點擊管理):</Text>
+                    <View style={styles.spreadsheetInfoDisplay}>
+                      <Text style={styles.spreadsheetLabel}>當前試算表:</Text>
                       <Text style={styles.spreadsheetName}>{spreadsheetInfo?.spreadsheetName || '產品掃描記錄'}</Text>
-                      <Text style={styles.spreadsheetId}>ID: {spreadsheetId}</Text>
                       
-                      {/* 操作按鈕區域 - 直接插入在 ID 下面 */}
-                      <View style={styles.spreadsheetActions}>
+                      {/* 快速操作按鈕 */}
+                      <View style={[styles.spreadsheetActions, { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }]}>
                         <TouchableOpacity
                           style={styles.spreadsheetActionButton}
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            handleCopySpreadsheetUrl();
-                          }}
+                          onPress={handleCopySpreadsheetUrl}
                         >
-                          <Text style={styles.spreadsheetActionButtonText}>📋 複製</Text>
+                          <Text style={styles.spreadsheetActionButtonText}>📋 複製網址</Text>
                         </TouchableOpacity>
                         
                         <TouchableOpacity
                           style={styles.spreadsheetActionButton}
-                          onPress={(e) => {
-                            e.stopPropagation();
+                          onPress={() => {
                             const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
                             Linking.openURL(url);
                           }}
                         >
-                          <Text style={styles.spreadsheetActionButtonText}>🔗 開啟</Text>
+                          <Text style={styles.spreadsheetActionButtonText}>🔗 開啟試算表</Text>
                         </TouchableOpacity>
                       </View>
                       
-                      {spreadsheetInfo?.createdAt && (
-                        <Text style={styles.spreadsheetDate}>
-                          建立時間: {new Date(spreadsheetInfo.createdAt).toLocaleDateString('zh-TW')}
-                        </Text>
-                      )}
-                      <Text style={styles.spreadsheetHint}>點擊查看管理選項</Text>
-                    </TouchableOpacity>
+                      {/* 管理選項 */}
+                      <TouchableOpacity 
+                        style={styles.spreadsheetActionButton}
+                        onPress={showSpreadsheetOptions}
+                      >
+                        <Text style={styles.spreadsheetActionButtonText}>⚙️ 管理試算表</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )}
                 
-                {/* 查看雲端資料夾按鈕 - 始終顯示 */}
+                {/* 查看雲端資料夾按鈕 - 始終顯示，讓用戶可以切換試算表 */}
                 <TouchableOpacity
                   style={styles.viewFolderButton}
                   onPress={handleViewCloudFolder}
                 >
                   <Text style={styles.viewFolderButtonText}>
-                    📁 查看雲端資料夾
+                    📁 {spreadsheetId ? '切換試算表' : '查看雲端資料夾'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1277,9 +1275,9 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
       </Modal>
 
       {/* 載入遮罩 */}
-      {(isCreatingSpreadsheet || isUploading) && (
+      {(isCreatingSpreadsheet || isUploading || isSelectingSpreadsheet) && (
         <Modal
-          visible={isCreatingSpreadsheet || isUploading}
+          visible={isCreatingSpreadsheet || isUploading || isSelectingSpreadsheet}
           transparent={true}
           animationType="fade"
         >
@@ -1287,7 +1285,9 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
             <View style={styles.loadingContainer}>
               <Text style={styles.loadingSpinner}>⏳</Text>
               <Text style={styles.loadingText}>
-                {isCreatingSpreadsheet ? '正在建立試算表...' : '正在上傳資料...'}
+                {isCreatingSpreadsheet ? '正在建立試算表...' : 
+                 isSelectingSpreadsheet ? '正在設定試算表...' : 
+                 '正在上傳資料...'}
               </Text>
               <Text style={styles.loadingSubText}>請稍候，不要關閉應用程式</Text>
             </View>
@@ -1418,15 +1418,25 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                     
                     <View style={styles.spreadsheetItemActions}>
                       <TouchableOpacity
-                        style={styles.spreadsheetItemActionButton}
+                        style={[
+                          styles.spreadsheetItemActionButton,
+                          isSelectingSpreadsheet && styles.spreadsheetItemActionButtonDisabled
+                        ]}
                         onPress={() => handleSelectSpreadsheet(spreadsheet)}
+                        disabled={isSelectingSpreadsheet}
                       >
-                        <Text style={styles.spreadsheetItemActionButtonText}>✅ 選擇</Text>
+                        <Text style={styles.spreadsheetItemActionButtonText}>
+                          {isSelectingSpreadsheet ? '⏳ 設定中...' : '✅ 選擇'}
+                        </Text>
                       </TouchableOpacity>
                       
                       <TouchableOpacity
-                        style={styles.spreadsheetItemActionButton}
+                        style={[
+                          styles.spreadsheetItemActionButton,
+                          isSelectingSpreadsheet && styles.spreadsheetItemActionButtonDisabled
+                        ]}
                         onPress={() => handleOpenSpreadsheet(spreadsheet)}
+                        disabled={isSelectingSpreadsheet}
                       >
                         <Text style={styles.spreadsheetItemActionButtonText}>🔗 開啟</Text>
                       </TouchableOpacity>
@@ -1556,6 +1566,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     width: '100%',
+    maxWidth: 300,
+    alignSelf: 'center',
   },
   createSheetButtonText: {
     color: '#fff',
@@ -1573,6 +1585,14 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: '#e9ecef',
     borderRadius: 6,
+  },
+  spreadsheetInfoDisplay: {
+    width: '100%',
+    padding: 15,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dee2e6',
   },
   spreadsheetLabel: {
     fontSize: 14,
@@ -2064,18 +2084,18 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   spreadsheetActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     marginTop: 8,
     marginBottom: 8,
-    gap: 6,
+    gap: 8,
   },
   spreadsheetActionButton: {
     backgroundColor: '#17a2b8',
-    padding: 6,
-    borderRadius: 4,
+    padding: 8,
+    borderRadius: 6,
     alignItems: 'center',
     flex: 1,
+    marginHorizontal: 4,
   },
   spreadsheetActionButtonText: {
     color: '#fff',
@@ -2088,6 +2108,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 10,
+    width: '100%',
+    maxWidth: 300,
+    alignSelf: 'center',
   },
   viewFolderButtonText: {
     color: '#fff',
@@ -2325,6 +2348,10 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 13,
     fontWeight: '600',
+  },
+  spreadsheetItemActionButtonDisabled: {
+    backgroundColor: '#6c757d',
+    opacity: 0.6,
   },
   spreadsheetListBottomSpacer: {
     height: 20,

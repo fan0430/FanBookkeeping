@@ -3,8 +3,13 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
 react {
-    nodeExecutableAndArgs = ["/usr/local/bin/node"]
+    nodeExecutableAndArgs = ["/opt/homebrew/bin/node"]
     autolinkLibrariesWithApp()
+}
+
+// Set React Native node modules directory to avoid react-native-svg using node command
+ext {
+    REACT_NATIVE_NODE_MODULES_DIR = file("../../node_modules/react-native")
 }
 
 def enableProguardInReleaseBuilds = true
