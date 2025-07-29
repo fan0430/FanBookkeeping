@@ -30,12 +30,14 @@ export interface SpreadsheetInfo {
 interface GoogleSheetsService {
   createSpreadsheet: (title: string) => Promise<string>;
   appendRow: (spreadsheetId: string, sheetName: string, data: any[]) => Promise<void>;
+  appendRowToNextEmptyRow: (spreadsheetId: string, sheetName: string, data: any[]) => Promise<void>;
   readSheet: (spreadsheetId: string, sheetName: string) => Promise<any[]>;
   updateRow: (spreadsheetId: string, sheetName: string, rowIndex: number, data: any[]) => Promise<void>;
   deleteRow: (spreadsheetId: string, sheetName: string, rowIndex: number) => Promise<void>;
   renameSheet: (spreadsheetId: string, newName: string) => Promise<void>;
   listSpreadsheets: () => Promise<SpreadsheetInfo[]>;
   getSpreadsheetInfo: (spreadsheetId: string) => Promise<SpreadsheetInfo>;
+  setColumnFormat: (spreadsheetId: string, sheetName: string, column: string, format: string) => Promise<void>;
 }
 
 class GoogleSheetsServiceImpl implements GoogleSheetsService {
@@ -108,15 +110,42 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
   async appendRow(spreadsheetId: string, sheetName: string, data: any[]): Promise<void> {
     try {
       await axios.post(
-        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${sheetName}!A:Z:append`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${sheetName}!A1:append`,
         {
           values: [data],
         },
         {
           headers: this.getHeaders(),
           params: {
-            valueInputOption: 'RAW',
+            valueInputOption: 'USER_ENTERED',
             insertDataOption: 'INSERT_ROWS',
+          },
+          timeout: 30000, // 30 秒超時
+        }
+      );
+    } catch (error) {
+      console.error('新增資料列錯誤:', error);
+      throw new Error('無法新增資料列');
+    }
+  }
+
+  // 新增資料到下一列空行，確保從 A 欄開始
+  async appendRowToNextEmptyRow(spreadsheetId: string, sheetName: string, data: any[]): Promise<void> {
+    try {
+      // 先讀取試算表以獲取最後一列的位置
+      const existingData = await this.readSheet(spreadsheetId, sheetName);
+      const nextRowIndex = existingData.length + 1;
+      
+      // 使用精確的範圍來新增資料到下一列
+      await axios.put(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${sheetName}!A${nextRowIndex}:${String.fromCharCode(65 + data.length - 1)}${nextRowIndex}`,
+        {
+          values: [data],
+        },
+        {
+          headers: this.getHeaders(),
+          params: {
+            valueInputOption: 'USER_ENTERED',
           },
           timeout: 30000, // 30 秒超時
         }
@@ -156,7 +185,7 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
         {
           headers: this.getHeaders(),
           params: {
-            valueInputOption: 'RAW',
+            valueInputOption: 'USER_ENTERED',
           },
           timeout: 30000, // 30 秒超時
         }
@@ -242,29 +271,33 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
       throw new Error('產品資料無效');
     }
 
-    // 取得台灣時間 (UTC+8)
+    // 取得台灣時間 (UTC+8) - 使用 Date 物件而不是字串
     const now = new Date();
     const taiwanTime = new Date(now.getTime() + (8 * 60 * 60 * 1000)); // UTC+8
-    const year = taiwanTime.getUTCFullYear();
-    const month = String(taiwanTime.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(taiwanTime.getUTCDate()).padStart(2, '0');
-    const hours = String(taiwanTime.getUTCHours()).padStart(2, '0');
-    const minutes = String(taiwanTime.getUTCMinutes()).padStart(2, '0');
-    const seconds = String(taiwanTime.getUTCSeconds()).padStart(2, '0');
-    const taiwanTimeString = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+    // 將金額轉換為數字格式，如果無法轉換則保持為空字串
+    const numericAmount = amount && !isNaN(parseFloat(amount)) ? parseFloat(amount) : '';
+
+    // 將生產日期轉換為 Date 物件
+    const productionDateObj = product.productionDate ? 
+      new Date(
+        parseInt(product.productionDate.substring(0, 4)),
+        parseInt(product.productionDate.substring(4, 6)) - 1,
+        parseInt(product.productionDate.substring(6, 8))
+      ) : null;
 
     const rowData = [
-      taiwanTimeString, // 掃描時間 (台灣時間)
+      taiwanTime, // 掃描時間 (Date 物件，Google Sheets 會自動識別為日期時間)
       product.category,
       product.categoryName,
-      product.productCode,
+      `'${product.productCode}`, // 產品代碼：加上單引號強制文字格式
       product.productName,
-      product.productionDate,
-      product.formattedDate,
-      amount || '', // 販售價格
+      productionDateObj, // 生產日期 (Date 物件)
+      product.formattedDate, // 格式化日期 (保持字串格式用於顯示)
+      numericAmount, // 販售價格 (數字格式)
     ];
 
-    await this.appendRow(spreadsheetId, '產品資料', rowData);
+    await this.appendRowToNextEmptyRow(spreadsheetId, '產品資料', rowData);
   }
 
   // 建立產品資料試算表
@@ -284,6 +317,21 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
     ];
 
     await this.appendRow(spreadsheetId, '產品資料', headers);
+
+    // 設定時間欄位的日期時間格式
+    await this.setColumnFormat(spreadsheetId, '產品資料', 'A', 'DATETIME');
+    
+    // 設定產品類別代碼欄位為文字格式
+    await this.setColumnFormat(spreadsheetId, '產品資料', 'B', 'TEXT');
+    
+    // 設定產品代碼欄位為文字格式（確保 001 不會變成 1）
+    await this.setColumnFormat(spreadsheetId, '產品資料', 'D', 'TEXT');
+    
+    // 設定生產日期欄位的日期格式
+    await this.setColumnFormat(spreadsheetId, '產品資料', 'F', 'DATE');
+    
+    // 設定金額欄位的數字格式
+    await this.setColumnFormat(spreadsheetId, '產品資料', 'H', 'NUMBER');
 
     return spreadsheetId;
   }
@@ -363,6 +411,76 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
     } catch (error) {
       console.error('取得試算表資訊錯誤:', error);
       throw new Error('無法取得試算表資訊');
+    }
+  }
+
+  // 設定欄位格式
+  async setColumnFormat(spreadsheetId: string, sheetName: string, column: string, format: string): Promise<void> {
+    try {
+      // 先獲取試算表資訊來取得正確的 sheetId
+      const spreadsheetInfo = await this.getSpreadsheetInfo(spreadsheetId);
+      const sheet = spreadsheetInfo.sheets.find(s => s.properties.title === sheetName);
+      
+      if (!sheet) {
+        throw new Error(`找不到工作表：${sheetName}`);
+      }
+
+      const sheetId = sheet.properties.sheetId;
+      const columnIndex = column.charCodeAt(0) - 65; // A=0, B=1, C=2, ...
+
+      let numberFormat;
+      switch (format.toUpperCase()) {
+        case 'NUMBER':
+          numberFormat = { type: 'NUMBER', pattern: '#,##0.00' };
+          break;
+        case 'CURRENCY':
+          numberFormat = { type: 'CURRENCY', pattern: '"$"#,##0.00' };
+          break;
+        case 'PERCENT':
+          numberFormat = { type: 'PERCENT', pattern: '0.00%' };
+          break;
+        case 'DATE':
+          numberFormat = { type: 'DATE', pattern: 'yyyy-mm-dd' };
+          break;
+        case 'DATETIME':
+          numberFormat = { type: 'DATE_TIME', pattern: 'yyyy-mm-dd hh:mm:ss' };
+          break;
+        case 'TEXT':
+          numberFormat = { type: 'TEXT', pattern: '@' }; // 使用 @ 模式強制文字格式
+          break;
+        default:
+          numberFormat = { type: 'TEXT', pattern: '@' };
+      }
+
+      await axios.post(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
+        {
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId: sheetId,
+                  startColumnIndex: columnIndex,
+                  endColumnIndex: columnIndex + 1,
+                },
+                cell: {
+                  userEnteredFormat: {
+                    numberFormat: numberFormat,
+                  },
+                },
+                fields: 'userEnteredFormat.numberFormat',
+              },
+            },
+          ],
+        },
+        {
+          headers: this.getHeaders(),
+          timeout: 30000, // 30 秒超時
+        }
+      );
+    } catch (error) {
+      console.error('設定欄位格式錯誤:', error);
+      // 不拋出錯誤，因為格式設定不是關鍵功能
     }
   }
 }

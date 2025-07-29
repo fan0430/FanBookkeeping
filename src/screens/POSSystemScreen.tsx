@@ -605,6 +605,27 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
       ];
       await googleSheetsService.appendRow(newSpreadsheetId, '產品資料', headers);
       
+      // 設定時間欄位的日期時間格式
+      try {
+        await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'A', 'DATETIME');
+      } catch (error) {
+        console.log('設定時間欄位格式失敗，但不影響功能:', error);
+      }
+      
+      // 設定生產日期欄位的日期格式
+      try {
+        await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'F', 'DATE');
+      } catch (error) {
+        console.log('設定生產日期欄位格式失敗，但不影響功能:', error);
+      }
+      
+      // 設定金額欄位的數字格式
+      try {
+        await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'H', 'NUMBER');
+      } catch (error) {
+        console.log('設定金額欄位格式失敗，但不影響功能:', error);
+      }
+      
       // 儲存試算表資訊到本地
       await saveUserSpreadsheetId(
         authState.user!.id,

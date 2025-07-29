@@ -12,6 +12,9 @@
 - **產品管理**: 管理產品類別和條碼生成
 - **Google 整合**: 雲端同步和 Google Sheets 支援
 - **簡潔介面**: 現代化的 UI 設計，操作直觀
+- **預設頁面設定**: 自訂應用程式啟動頁面
+- **環境檢測**: 自動檢測 Debug/Release 模式
+- **智能 API 配置**: 根據環境自動調整 API 設定
 
 ### 🎯 核心頁面
 1. **主選擇頁面**: 選擇使用帳本或 POS 系統
@@ -35,6 +38,41 @@
 - 條碼掃描和解析
 - 產品資訊管理
 - Google Sheets 雲端同步
+- 預設頁面自訂
+- 環境模式自動檢測
+- Release 模式 API 優化
+
+## 🆕 最新功能更新 (2025-07-25)
+
+### 1. 預設頁面設定
+- **功能**: 可自訂應用程式啟動時顯示的頁面
+- **選項**: 主選擇頁面、帳本選擇、POS 系統
+- **位置**: 設定頁面 → 應用程式 → 預設頁面
+- **用途**: 快速進入常用功能，提升使用效率
+
+### 2. 環境檢測系統
+- **自動檢測**: 應用程式自動判斷當前為 Debug 或 Release 模式
+- **環境資訊**: 顯示平台、版本、模擬器狀態等詳細資訊
+- **診斷工具**: 在 POS 系統中提供環境檢測功能
+- **日誌記錄**: 詳細記錄環境變化和 API 活動
+
+### 3. Release 模式 API 配置
+- **智能配置**: 根據環境自動調整 API 請求配置
+- **額外 Headers**: Release 模式下自動添加安全性和相容性 headers
+- **超時保護**: 所有 API 請求都有 30 秒超時保護
+- **快取控制**: Release 模式下禁用快取，確保資料即時性
+- **錯誤處理**: 完善的錯誤處理和日誌記錄
+
+### 4. 增強的 Google 整合
+- **診斷工具**: 內建 Google 登入問題診斷
+- **快速修復**: 提供常見問題的快速解決方案
+- **環境資訊**: 顯示詳細的 Google 服務狀態
+- **API 連線測試**: 測試 Google API 連線狀態
+
+### 5. 改進的設定系統
+- **持久化設定**: 應用程式設定自動保存和載入
+- **即時更新**: 設定變更立即生效
+- **預設值管理**: 智能的預設值處理
 
 ## 技術架構
 
@@ -46,6 +84,7 @@
 - **React Native Camera** (條碼掃描)
 - **Google Sign-In** (Google 登入)
 - **Google Sheets API** (雲端同步)
+- **AsyncStorage** (本地資料儲存)
 
 ### 專案結構
 ```
@@ -68,13 +107,13 @@ src/
 ├── types/              # TypeScript 類型定義
 │   └── index.ts
 └── utils/              # 工具函數
-    ├── helpers.ts
-    ├── categories.ts
-    ├── productParser.ts          # 產品解析
-    ├── googleSheetsService.ts    # Google Sheets 服務
-    ├── googleAuthTest.ts         # Google 登入測試
-    ├── spreadsheetStorage.ts     # 試算表儲存
-    └── apiConfig.ts              # API 配置
+    ├── helpers.ts                 # 通用工具函數
+    ├── categories.ts              # 分類定義
+    ├── productParser.ts           # 產品解析
+    ├── googleSheetsService.ts     # Google Sheets 服務
+    ├── googleAuthTest.ts          # Google 登入測試
+    ├── spreadsheetStorage.ts      # 試算表儲存
+    └── apiConfig.ts               # API 配置管理
 ```
 
 ## 安裝與運行
@@ -134,6 +173,7 @@ npm run android
 
 #### 管理設定
 - 在「設定」頁面管理應用程式選項
+- **預設頁面設定**: 選擇應用程式啟動時顯示的頁面
 - 匯出/備份數據（即將推出）
 - 清除所有數據
 
@@ -159,6 +199,12 @@ npm run android
 2. 選擇 Google 帳戶並授權
 3. 登入成功後可建立 Google Sheets 試算表
 4. 掃描的產品資料會自動上傳到雲端
+
+#### 環境檢測和診斷
+1. 點擊「🔍 診斷問題」按鈕
+2. 查看環境資訊和 Google 服務狀態
+3. 使用「🧪 測試登入」功能測試 Google 登入
+4. 查看「🌍 環境資訊」了解當前模式
 
 ### 產品管理
 
@@ -205,12 +251,15 @@ npm run android
 - **Google Sheets 同步**: 自動上傳產品資料到雲端
 - **試算表管理**: 建立和管理 Google Sheets 試算表
 - **資料備份**: 雲端備份重要資料
+- **診斷工具**: 內建問題診斷和快速修復
+- **環境檢測**: 自動檢測 Google 服務狀態
 
 ### 設定指南
 詳細的 Google 整合設定請參考：
 - `GOOGLE_SETUP.md` - 完整設定指南
 - `GOOGLE_INTEGRATION_SUMMARY.md` - 功能總結
 - `GOOGLE_CLOUD_SETUP.md` - Google Cloud Console 設定
+- `QUICK_FIX_GUIDE.md` - 快速修復指南
 
 ## 開發計劃
 
@@ -223,6 +272,10 @@ npm run android
 - ✅ Google 登入整合
 - ✅ Google Sheets 同步
 - ✅ 試算表管理
+- ✅ 預設頁面設定
+- ✅ 環境檢測系統
+- ✅ Release 模式 API 配置
+- ✅ 增強的 Google 整合診斷
 
 ### 即將推出
 - [ ] 數據持久化存儲
@@ -246,10 +299,12 @@ npm run android
 - **條碼掃描問題**: 檢查相機權限設定
 - **建置錯誤**: 參考 `QUICK_FIX_GUIDE.md`
 - **發布模式問題**: 參考 `RELEASE_MODE_API_GUIDE.md`
+- **環境檢測問題**: 使用應用程式內診斷工具
 
 ### 除錯指南
 - `DEBUG_KEY_SETUP.md` - 除錯金鑰設定
 - `RELEASE_KEY_SETUP.md` - 發布金鑰設定
+- `RELEASE_MODE_API_GUIDE.md` - Release 模式 API 配置
 
 ## 貢獻
 
