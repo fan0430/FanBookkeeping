@@ -2,7 +2,7 @@ import { ParsedBarcode } from '../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getMerchantByCode } from './merchantService';
 
-// 產品類別定義
+// 產品類別定義 - 全域共用
 const PRODUCT_CATEGORIES: { [key: string]: string } = {
   'FRU': '水果',
   'VEG': '蔬菜',
@@ -15,12 +15,9 @@ const PRODUCT_CATEGORIES: { [key: string]: string } = {
   'CAN': '罐頭食品',
   'BAK': '烘焙食品',
 };
-// const PRODUCT_CATEGORIES: { [key: string]: string } = {
- 
-// };
 
-// 產品代碼對應表 - 新格式包含商品ID
-const PRODUCT_CODES: { [key: string]: { [key: string]: { name: string; productId: string } } } = {
+// 預設產品代碼對應表 - 只歸屬於 ANPIN 商家
+const DEFAULT_PRODUCT_CODES: { [key: string]: { [key: string]: { name: string; productId: string } } } = {
   'FRU': {
     '001': { name: '蘋果', productId: 'FRU001' },
     '002': { name: '香蕉', productId: 'FRU002' },
@@ -180,8 +177,8 @@ export const saveCustomCategory = async (categoryCode: string, categoryName: str
   }
 };
 
-// 獲取本地存儲的自定義產品
-export const getCustomProducts = async (): Promise<{ [key: string]: { [key: string]: { name: string; productId: string } } }> => {
+// 獲取本地存儲的自定義產品（按商家分組）
+export const getCustomProducts = async (): Promise<{ [merchantId: string]: { [category: string]: { [productCode: string]: { name: string; productId: string } } } }> => {
   try {
     const customProductsJson = await AsyncStorage.getItem(CUSTOM_PRODUCTS_KEY);
     return customProductsJson ? JSON.parse(customProductsJson) : {};
@@ -191,18 +188,23 @@ export const getCustomProducts = async (): Promise<{ [key: string]: { [key: stri
   }
 };
 
-// 保存自定義產品到本地存儲
-export const saveCustomProduct = async (category: string, productCode: string, productName: string, productId: string = '0'): Promise<boolean> => {
+// 保存自定義產品到本地存儲（按商家分組）
+export const saveCustomProduct = async (merchantId: string, category: string, productCode: string, productName: string, productId: string = '0'): Promise<boolean> => {
   try {
     const customProducts = await getCustomProducts();
     
+    // 如果該商家不存在，創建它
+    if (!customProducts[merchantId]) {
+      customProducts[merchantId] = {};
+    }
+    
     // 如果該類別不存在，創建它
-    if (!customProducts[category]) {
-      customProducts[category] = {};
+    if (!customProducts[merchantId][category]) {
+      customProducts[merchantId][category] = {};
     }
     
     // 添加新產品（包含商品ID）
-    customProducts[category][productCode] = {
+    customProducts[merchantId][category][productCode] = {
       name: productName,
       productId: productId
     };
@@ -280,22 +282,7 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
     productId = '0'; // 舊格式沒有商品ID，使用預設值
   }
 
-  // 如果是新格式，驗證商家代碼
-  let merchantName = '';
-  if (isNewFormat && merchantCode) {
-    try {
-      const merchant = await getMerchantByCode(merchantCode);
-      if (merchant) {
-        merchantName = merchant.name;
-      } else {
-        // 即使商家不存在，也保留商家代碼，不讓整個解析失敗
-        console.warn(`未知的商家代碼：${merchantCode}，但繼續解析條碼`);
-      }
-    } catch (error) {
-      console.error('載入商家資訊失敗:', error);
-      // 即使商家服務出錯，也繼續解析條碼
-    }
-  }
+
 
   // 獲取所有產品類別（包括預設和自定義）
   const allCategories = await getProductCategories();
@@ -308,8 +295,27 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
     console.warn(`未知的產品類別：${category}，使用類別代碼作為名稱`);
   }
 
+  // 獲取商家ID和名稱
+  let merchantId = '';
+  let merchantName = '';
+  if (isNewFormat && merchantCode) {
+    try {
+      const merchant = await getMerchantByCode(merchantCode);
+      if (merchant) {
+        merchantId = merchant.id;
+        merchantName = merchant.name;
+      } else {
+        // 即使商家不存在，也保留商家代碼，不讓整個解析失敗
+        console.warn(`未知的商家代碼：${merchantCode}，但繼續解析條碼`);
+      }
+    } catch (error) {
+      console.error('載入商家資訊失敗:', error);
+      // 即使商家服務出錯，也繼續解析條碼
+    }
+  }
+
   // 獲取指定類別的所有產品（包括預設和自定義產品）
-  const allProducts = await getProductsByCategory(category);
+  const allProducts = await getProductsByCategory(merchantId, category);
   
   // 檢查產品代碼是否存在
   let productName = allProducts[productCode];
@@ -321,7 +327,7 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
   
   // 如果條碼中沒有商品ID，從產品資料中獲取
   if (!productId || productId === '0') {
-    productId = await getProductId(category, productCode);
+    productId = await getProductId(merchantId, category, productCode);
     if (!productId || productId === '') {
       productId = '0';
     }
@@ -371,7 +377,7 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
 };
 
 /**
- * 獲取所有產品類別（包括預設和自定義）
+ * 獲取所有產品類別（包括預設和自定義）- 全域共用
  */
 export const getProductCategories = async (): Promise<{ [key: string]: string }> => {
   const defaultCategories = PRODUCT_CATEGORIES;
@@ -382,19 +388,23 @@ export const getProductCategories = async (): Promise<{ [key: string]: string }>
 };
 
 /**
- * 獲取指定類別的所有產品（包括預設和自定義產品）
+ * 獲取指定商家和類別的所有產品
  */
-export const getProductsByCategory = async (category: string): Promise<{ [key: string]: string }> => {
-  const defaultProducts = PRODUCT_CODES[category] || {};
-  const customProducts = await getCustomProducts();
-  const categoryCustomProducts = customProducts[category] || {};
+export const getProductsByCategory = async (merchantId: string, category: string): Promise<{ [key: string]: string }> => {
+  // 如果是 ANPIN 商家，包含預設產品
+  const defaultProducts: { [key: string]: string } = {};
+  if (merchantId === '1') { // ANPIN 的 ID
+    const defaultCategoryProducts = DEFAULT_PRODUCT_CODES[category] || {};
+    Object.keys(defaultCategoryProducts).forEach(productCode => {
+      const product = defaultCategoryProducts[productCode];
+      defaultProducts[productCode] = product.name;
+    });
+  }
   
-  // 處理預設產品的資料結構
-  const processedDefaultProducts: { [key: string]: string } = {};
-  Object.keys(defaultProducts).forEach(productCode => {
-    const product = defaultProducts[productCode];
-    processedDefaultProducts[productCode] = product.name;
-  });
+  // 獲取自定義產品
+  const customProducts = await getCustomProducts();
+  const merchantCustomProducts = customProducts[merchantId] || {};
+  const categoryCustomProducts = merchantCustomProducts[category] || {};
   
   // 處理自定義產品的資料結構
   const processedCustomProducts: { [key: string]: string } = {};
@@ -410,24 +420,27 @@ export const getProductsByCategory = async (category: string): Promise<{ [key: s
   });
   
   // 合併預設產品和自定義產品
-  return { ...processedDefaultProducts, ...processedCustomProducts };
+  return { ...defaultProducts, ...processedCustomProducts };
 };
 
 /**
  * 獲取產品的商品ID
  */
-export const getProductId = async (category: string, productCode: string): Promise<string> => {
+export const getProductId = async (merchantId: string, category: string, productCode: string): Promise<string> => {
   try {
-    // 先檢查預設產品
-    const defaultProducts = PRODUCT_CODES[category] || {};
-    const defaultProduct = defaultProducts[productCode];
-    if (defaultProduct && defaultProduct.productId) {
-      return defaultProduct.productId;
+    // 如果是 ANPIN 商家，先檢查預設產品
+    if (merchantId === '1') {
+      const defaultProducts = DEFAULT_PRODUCT_CODES[category] || {};
+      const defaultProduct = defaultProducts[productCode];
+      if (defaultProduct && defaultProduct.productId) {
+        return defaultProduct.productId;
+      }
     }
     
     // 再檢查自定義產品
     const customProducts = await getCustomProducts();
-    const categoryProducts = customProducts[category] || {};
+    const merchantProducts = customProducts[merchantId] || {};
+    const categoryProducts = merchantProducts[category] || {};
     const customProduct = categoryProducts[productCode];
     
     if (customProduct && typeof customProduct === 'object' && customProduct.productId) {
@@ -446,4 +459,37 @@ export const getProductId = async (category: string, productCode: string): Promi
  */
 export const generateBarcode = (merchantCode: string, category: string, productCode: string, productId: string, productionDate: string): string => {
   return `${merchantCode}-${category}-${productCode}-${productId}-${productionDate}`;
+};
+
+// 測試函數 - 驗證新的商家產品管理邏輯
+export const testMerchantProductLogic = async () => {
+  console.log('=== 測試商家產品管理邏輯 ===');
+  
+  // 測試1: 獲取產品類別（應該全域共用）
+  const categories = await getProductCategories();
+  console.log('產品類別（全域共用）:', Object.keys(categories).length, '個類別');
+  
+  // 測試2: ANPIN 商家的產品（應該包含預設產品）
+  const anpinProducts = await getProductsByCategory('1', 'FRU');
+  console.log('ANPIN 商家水果類別產品:', Object.keys(anpinProducts).length, '個產品');
+  console.log('ANPIN 產品範例:', anpinProducts);
+  
+  // 測試3: 新增商家的產品（應該為空）
+  const newMerchantProducts = await getProductsByCategory('999', 'FRU');
+  console.log('新商家水果類別產品:', Object.keys(newMerchantProducts).length, '個產品');
+  
+  // 測試4: 為新商家新增產品
+  const success = await saveCustomProduct('999', 'FRU', '001', '測試芒果', 'FRU999001');
+  console.log('為新商家新增產品成功:', success);
+  
+  // 測試5: 再次檢查新商家的產品
+  const updatedNewMerchantProducts = await getProductsByCategory('999', 'FRU');
+  console.log('新商家新增產品後的水果類別產品:', Object.keys(updatedNewMerchantProducts).length, '個產品');
+  console.log('新商家產品:', updatedNewMerchantProducts);
+  
+  // 測試6: 驗證 ANPIN 商家的產品沒有被影響
+  const anpinProductsAfter = await getProductsByCategory('1', 'FRU');
+  console.log('ANPIN 商家產品數量（應該不變）:', Object.keys(anpinProductsAfter).length, '個產品');
+  
+  console.log('=== 測試完成 ===');
 }; 

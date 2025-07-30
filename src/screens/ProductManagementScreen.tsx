@@ -70,8 +70,8 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
 
   // 載入產品列表
   const loadProducts = async () => {
-    if (selectedCategory) {
-      const categoryProducts = await getProductsByCategory(selectedCategory);
+    if (selectedCategory && selectedMerchant) {
+      const categoryProducts = await getProductsByCategory(selectedMerchant, selectedCategory);
       setProducts(categoryProducts);
     }
   };
@@ -88,7 +88,7 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
   const handleProductSelect = async (code: string, name: string) => {
     setSelectedProduct({ code, name });
     // 獲取商品ID
-    const productId = await getProductId(selectedCategory, code);
+    const productId = await getProductId(selectedMerchant, selectedCategory, code);
     setSelectedProductId(productId);
     setShowBarcodeModal(true);
   };
@@ -105,7 +105,7 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
     }
 
     // 從產品資料中獲取商品ID
-    const productId = await getProductId(selectedCategory, selectedProduct.code);
+    const productId = await getProductId(selectedMerchant, selectedCategory, selectedProduct.code);
 
     // 驗證日期格式 (YYYYMMDD)
     const datePattern = /^\d{8}$/;
@@ -154,6 +154,11 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
   };
 
   const handleAddProduct = async () => {
+    if (!selectedMerchant) {
+      Alert.alert('錯誤', '請先選擇商家');
+      return;
+    }
+
     if (!selectedCategory) {
       Alert.alert('錯誤', '請先選擇產品類別');
       return;
@@ -175,12 +180,12 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
     const newProductCode = generateNextProductCode(selectedCategory);
 
     // 保存到本地存儲
-    const success = await saveCustomProduct(selectedCategory, newProductCode, newProductName, newProductId);
+    const success = await saveCustomProduct(selectedMerchant, selectedCategory, newProductCode, newProductName, newProductId);
     
     if (success) {
       Alert.alert(
         '新增產品成功',
-        `產品代碼：${newProductCode}\n產品名稱：${newProductName}\n商品ID：${newProductId && newProductId !== '0' ? newProductId : '無'}\n類別：${categories[selectedCategory]}`,
+        `商家：${merchants.find(m => m.id === selectedMerchant)?.name}\n產品代碼：${newProductCode}\n產品名稱：${newProductName}\n商品ID：${newProductId && newProductId !== '0' ? newProductId : '無'}\n類別：${categories[selectedCategory]}`,
         [
           {
             text: '確定',
@@ -354,7 +359,7 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>
-                {categories[selectedCategory]} - 產品列表
+                {merchants.find(m => m.id === selectedMerchant)?.name} - {categories[selectedCategory]} - 產品列表
               </Text>
               <TouchableOpacity
                 style={styles.addProductButton}
@@ -450,6 +455,10 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
             <Text style={styles.modalTitle}>新增產品項目</Text>
             
             <View style={styles.productDisplay}>
+              <Text style={styles.productDisplayLabel}>商家:</Text>
+              <Text style={styles.productDisplayText}>
+                {merchants.find(m => m.id === selectedMerchant)?.name}
+              </Text>
               <Text style={styles.productDisplayLabel}>產品類別:</Text>
               <Text style={styles.productDisplayText}>
                 {categories[selectedCategory]}
