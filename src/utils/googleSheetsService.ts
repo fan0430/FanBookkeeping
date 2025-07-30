@@ -87,7 +87,7 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
                 title: '產品資料',
                 gridProperties: {
                   rowCount: 1000,
-                  columnCount: 10,
+                  columnCount: 12,
                 },
               },
             },
@@ -278,7 +278,7 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
     // 將金額轉換為數字格式，如果無法轉換則保持為空字串
     const numericAmount = amount && !isNaN(parseFloat(amount)) ? parseFloat(amount) : '';
 
-    // 將生產日期轉換為 Date 物件
+            // 將進貨日期轉換為 Date 物件
     const productionDateObj = product.productionDate ? 
       new Date(
         parseInt(product.productionDate.substring(0, 4)),
@@ -288,11 +288,13 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
 
     const rowData = [
       taiwanTime, // 掃描時間 (Date 物件，Google Sheets 會自動識別為日期時間)
+      product.merchantCode || '', // 商家代碼
+      product.merchantName || '', // 商家名稱
       product.category,
       product.categoryName,
       `'${product.productCode}`, // 產品代碼：加上單引號強制文字格式
       product.productName,
-      productionDateObj, // 生產日期 (Date 物件)
+              productionDateObj, // 進貨日期 (Date 物件)
       product.formattedDate, // 格式化日期 (保持字串格式用於顯示)
       numericAmount, // 販售價格 (數字格式)
     ];
@@ -307,11 +309,13 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
     // 新增標題列
     const headers = [
       '掃描時間',
+      '商家代碼',
+      '商家名稱',
       '產品類別代碼',
       '產品類別名稱',
       '產品代碼',
       '產品名稱',
-      '生產日期',
+              '進貨日期',
       '格式化日期',
       '販售價格',
     ];
@@ -321,17 +325,23 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
     // 設定時間欄位的日期時間格式
     await this.setColumnFormat(spreadsheetId, '產品資料', 'A', 'DATETIME');
     
-    // 設定產品類別代碼欄位為文字格式
+    // 設定商家代碼欄位為文字格式
     await this.setColumnFormat(spreadsheetId, '產品資料', 'B', 'TEXT');
     
-    // 設定產品代碼欄位為文字格式（確保 001 不會變成 1）
+    // 設定商家名稱欄位為文字格式
+    await this.setColumnFormat(spreadsheetId, '產品資料', 'C', 'TEXT');
+    
+    // 設定產品類別代碼欄位為文字格式
     await this.setColumnFormat(spreadsheetId, '產品資料', 'D', 'TEXT');
     
-    // 設定生產日期欄位的日期格式
-    await this.setColumnFormat(spreadsheetId, '產品資料', 'F', 'DATE');
+    // 設定產品代碼欄位為文字格式（確保 001 不會變成 1）
+    await this.setColumnFormat(spreadsheetId, '產品資料', 'F', 'TEXT');
+    
+            // 設定進貨日期欄位的日期格式
+    await this.setColumnFormat(spreadsheetId, '產品資料', 'H', 'DATE');
     
     // 設定金額欄位的數字格式
-    await this.setColumnFormat(spreadsheetId, '產品資料', 'H', 'NUMBER');
+    await this.setColumnFormat(spreadsheetId, '產品資料', 'J', 'NUMBER');
 
     return spreadsheetId;
   }

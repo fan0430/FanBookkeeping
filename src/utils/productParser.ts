@@ -1,5 +1,6 @@
 import { ParsedBarcode } from '../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getMerchantByCode } from './merchantService';
 
 // 產品類別定義
 const PRODUCT_CATEGORIES: { [key: string]: string } = {
@@ -214,12 +215,13 @@ export const saveCustomProduct = async (category: string, productCode: string, p
  * 格式：CAT-XXX-YYYYMMDD
  * CAT: 類別代碼 (3位)
  * XXX: 產品代碼 (3位)
- * YYYYMMDD: 生產日期 (8位)
+ * YYYYMMDD: 進貨日期 (8位)
  */
 export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
   // 基本驗證
   if (!barcode || typeof barcode !== 'string') {
     return {
+      merchantCode: '',
       category: '',
       categoryName: '',
       productCode: '',
@@ -231,12 +233,22 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
     };
   }
 
-  // 檢查條碼格式
-  const barcodePattern = /^([A-Z]{3})-(\d{3})-(\d{8})$/;
-  const match = barcode.match(barcodePattern);
+  // 檢查條碼格式 - 支援舊格式和新格式
+  const oldBarcodePattern = /^([A-Z]{3})-(\d{3})-(\d{8})$/;
+  const newBarcodePattern = /^([A-Z]+)-([A-Z]{3})-(\d{3})-(\d{8})$/;
+  
+  let match = barcode.match(newBarcodePattern);
+  let isNewFormat = true;
+  
+  if (!match) {
+    // 嘗試舊格式
+    match = barcode.match(oldBarcodePattern);
+    isNewFormat = false;
+  }
 
   if (!match) {
     return {
+      merchantCode: '',
       category: '',
       categoryName: '',
       productCode: '',
@@ -244,11 +256,35 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
       productionDate: '',
       formattedDate: '',
       isValid: false,
-      error: '條碼格式不正確，應為：CAT-XXX-YYYYMMDD',
+      error: '條碼格式不正確，應為：MERCHANT-CAT-XXX-YYYYMMDD 或 CAT-XXX-YYYYMMDD',
     };
   }
 
-  const [, category, productCode, productionDate] = match;
+  let merchantCode = '';
+  let category, productCode, productionDate;
+
+  if (isNewFormat) {
+    [, merchantCode, category, productCode, productionDate] = match;
+  } else {
+    [, category, productCode, productionDate] = match;
+  }
+
+  // 如果是新格式，驗證商家代碼
+  let merchantName = '';
+  if (isNewFormat && merchantCode) {
+    try {
+      const merchant = await getMerchantByCode(merchantCode);
+      if (merchant) {
+        merchantName = merchant.name;
+      } else {
+        // 即使商家不存在，也保留商家代碼，不讓整個解析失敗
+        console.warn(`未知的商家代碼：${merchantCode}，但繼續解析條碼`);
+      }
+    } catch (error) {
+      console.error('載入商家資訊失敗:', error);
+      // 即使商家服務出錯，也繼續解析條碼
+    }
+  }
 
   // 獲取所有產品類別（包括預設和自定義）
   const allCategories = await getProductCategories();
@@ -256,6 +292,8 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
   // 檢查類別是否存在
   if (!allCategories[category]) {
     return {
+      merchantCode,
+      merchantName,
       category,
       categoryName: '',
       productCode,
@@ -275,6 +313,8 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
   // 檢查產品代碼是否存在
   if (!allProducts[productCode]) {
     return {
+      merchantCode,
+      merchantName,
       category,
       categoryName,
       productCode,
@@ -300,6 +340,8 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
 
   if (!isValidDate) {
     return {
+      merchantCode,
+      merchantName,
       category,
       categoryName,
       productCode,
@@ -307,7 +349,7 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
       productionDate,
       formattedDate: '',
       isValid: false,
-      error: '生產日期格式不正確',
+      error: '進貨日期格式不正確',
     };
   }
 
@@ -315,6 +357,8 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
   const formattedDate = `${year}/${month.toString().padStart(2, '0')}/${day.toString().padStart(2, '0')}`;
 
   return {
+    merchantCode,
+    merchantName,
     category,
     categoryName,
     productCode,
@@ -351,6 +395,6 @@ export const getProductsByCategory = async (category: string): Promise<{ [key: s
 /**
  * 生成產品條碼
  */
-export const generateBarcode = (category: string, productCode: string, productionDate: string): string => {
-  return `${category}-${productCode}-${productionDate}`;
+export const generateBarcode = (merchantCode: string, category: string, productCode: string, productionDate: string): string => {
+  return `${merchantCode}-${category}-${productCode}-${productionDate}`;
 }; 

@@ -48,6 +48,8 @@ export interface Product {
 }
 
 export interface ParsedBarcode {
+  merchantCode?: string;
+  merchantName?: string;
   category: string;
   categoryName: string;
   productCode: string;
@@ -70,4 +72,17 @@ export interface GoogleAuthState {
   isSignedIn: boolean;
   user: GoogleUser | null;
   accessToken: string | null;
+}
+
+export interface Merchant {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  createdAt: Date;
+}
+
+export interface ProductWithMerchant extends Product {
+  merchantId: string;
+  merchantName: string;
 } 

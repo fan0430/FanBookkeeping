@@ -17,6 +17,10 @@ const MainSelectScreen: React.FC<NavigationProps> = ({ navigation }) => {
     navigation.navigate('posSystem');
   };
 
+  const handleMerchantManagement = () => {
+    navigation.navigate('merchantManagement');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -44,6 +48,17 @@ const MainSelectScreen: React.FC<NavigationProps> = ({ navigation }) => {
           <Text style={styles.optionTitle}>POS系統</Text>
           <Text style={styles.optionDescription}>
             掃描條碼，快速記錄交易
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.optionButton, styles.merchantButton]}
+          onPress={handleMerchantManagement}
+        >
+          <Text style={styles.optionIcon}>🏪</Text>
+          <Text style={styles.optionTitle}>商家管理</Text>
+          <Text style={styles.optionDescription}>
+            管理商家資訊，設定產品分類
           </Text>
         </TouchableOpacity>
       </View>
@@ -102,6 +117,10 @@ const styles = StyleSheet.create({
   posButton: {
     borderLeftWidth: 4,
     borderLeftColor: '#28a745',
+  },
+  merchantButton: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#ff9500',
   },
   optionIcon: {
     fontSize: 48,

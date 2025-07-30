@@ -12,9 +12,12 @@ import {
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { NavigationProps } from '../types';
+import { Merchant } from '../types';
 import { getProductCategories, getProductsByCategory, generateBarcode, saveCustomProduct, saveCustomCategory } from '../utils/productParser';
+import { loadMerchants } from '../utils/merchantService';
 
 const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
+  const [selectedMerchant, setSelectedMerchant] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [showBarcodeModal, setShowBarcodeModal] = useState(false);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
@@ -32,11 +35,23 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
   // 產品列表和類別狀態
   const [products, setProducts] = useState<{ [key: string]: string }>({});
   const [categories, setCategories] = useState<{ [key: string]: string }>({});
+  const [merchants, setMerchants] = useState<Merchant[]>([]);
 
-  // 當組件載入時，載入產品類別
+  // 當組件載入時，載入商家和產品類別
   useEffect(() => {
+    loadMerchantsList();
     loadCategories();
   }, []);
+
+  // 載入商家列表
+  const loadMerchantsList = async () => {
+    try {
+      const merchantsList = await loadMerchants();
+      setMerchants(merchantsList);
+    } catch (error) {
+      console.error('載入商家列表失敗:', error);
+    }
+  };
 
   // 當選擇的類別改變時，重新載入產品列表
   useEffect(() => {
@@ -59,6 +74,11 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
     }
   };
 
+  const handleMerchantSelect = (merchantId: string) => {
+    setSelectedMerchant(merchantId);
+    setSelectedCategory(''); // 重置產品類別選擇
+  };
+
   const handleCategorySelect = (category: string) => {
     setSelectedCategory(category);
   };
@@ -69,22 +89,34 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
   };
 
   const generateProductBarcode = () => {
+    if (!selectedMerchant) {
+      Alert.alert('錯誤', '請先選擇商家');
+      return;
+    }
+
     if (!selectedProduct || !productionDate.trim()) {
-      Alert.alert('錯誤', '請輸入生產日期');
+              Alert.alert('錯誤', '請輸入進貨日期');
       return;
     }
 
     // 驗證日期格式 (YYYYMMDD)
     const datePattern = /^\d{8}$/;
     if (!datePattern.test(productionDate)) {
-      Alert.alert('錯誤', '生產日期格式應為：YYYYMMDD');
+              Alert.alert('錯誤', '進貨日期格式應為：YYYYMMDD');
       return;
     }
 
-    const barcode = generateBarcode(selectedCategory, selectedProduct.code, productionDate);
+    // 獲取選中的商家代碼
+    const selectedMerchantData = merchants.find(m => m.id === selectedMerchant);
+    if (!selectedMerchantData) {
+      Alert.alert('錯誤', '找不到選中的商家資訊');
+      return;
+    }
+
+    const barcode = generateBarcode(selectedMerchantData.code, selectedCategory, selectedProduct.code, productionDate);
     Alert.alert(
       '產品條碼',
-      `條碼：${barcode}\n\n產品：${selectedProduct.name}\n類別：${categories[selectedCategory]}\n生產日期：${productionDate}`,
+              `條碼：${barcode}\n\n商家：${selectedMerchantData.name}\n產品：${selectedProduct.name}\n類別：${categories[selectedCategory]}\n進貨日期：${productionDate}`,
       [
         { 
           text: '複製條碼', 
@@ -209,6 +241,24 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
     }
   };
 
+  const renderMerchantItem = (merchant: Merchant) => (
+    <TouchableOpacity
+      key={merchant.id}
+      style={[
+        styles.merchantItem,
+        selectedMerchant === merchant.id && styles.merchantItemActive
+      ]}
+      onPress={() => handleMerchantSelect(merchant.id)}
+    >
+      <Text style={[
+        styles.merchantText,
+        selectedMerchant === merchant.id && styles.merchantTextActive
+      ]}>
+        {merchant.name}
+      </Text>
+    </TouchableOpacity>
+  );
+
   const renderCategoryItem = (categoryCode: string, categoryName: string) => (
     <TouchableOpacity
       key={categoryCode}
@@ -257,20 +307,39 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
       <ScrollView style={styles.content}>
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>選擇產品類別</Text>
+            <Text style={styles.sectionTitle}>選擇商家</Text>
             <TouchableOpacity
               style={styles.addCategoryButton}
-              onPress={() => setShowAddCategoryModal(true)}
+              onPress={() => navigation.navigate('merchantManagement')}
             >
-              <Text style={styles.addCategoryButtonText}>+ 新增類別</Text>
+              <Text style={styles.addCategoryButtonText}>管理商家</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.categoriesContainer}>
-            {Object.entries(categories).map(([code, name]) => 
-              renderCategoryItem(code, name)
+          <View style={styles.merchantsContainer}>
+            {merchants.map(merchant => 
+              renderMerchantItem(merchant)
             )}
           </View>
         </View>
+
+        {selectedMerchant && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>選擇產品類別</Text>
+              <TouchableOpacity
+                style={styles.addCategoryButton}
+                onPress={() => setShowAddCategoryModal(true)}
+              >
+                <Text style={styles.addCategoryButtonText}>+ 新增類別</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.categoriesContainer}>
+              {Object.entries(categories).map(([code, name]) => 
+                renderCategoryItem(code, name)
+              )}
+            </View>
+          </View>
+        )}
 
         {selectedCategory && (
           <View style={styles.section}>
@@ -318,7 +387,7 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
             )}
             
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>生產日期 (YYYYMMDD):</Text>
+              <Text style={styles.inputLabel}>進貨日期 (YYYYMMDD):</Text>
               <TextInput
                 style={styles.dateInput}
                 value={productionDate}
@@ -671,6 +740,36 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  // 商家相關樣式
+  merchantItem: {
+    backgroundColor: '#fff',
+    padding: 12,
+    marginHorizontal: 8,
+    marginVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  merchantItemActive: {
+    backgroundColor: '#007bff',
+    borderColor: '#007bff',
+  },
+  merchantText: {
+    fontSize: 16,
+    color: '#212529',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  merchantTextActive: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  merchantsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
   },
 });
 

@@ -595,11 +595,13 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
       // 為新試算表添加標題列
       const headers = [
         '掃描時間',
+        '商家代碼',
+        '商家名稱',
         '產品類別代碼',
         '產品類別名稱',
         '產品代碼',
         '產品名稱',
-        '生產日期',
+        '進貨日期',
         '格式化日期',
         '販售價格',
       ];
@@ -612,16 +614,37 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
         console.log('設定時間欄位格式失敗，但不影響功能:', error);
       }
       
-      // 設定生產日期欄位的日期格式
+      // 設定商家代碼欄位為文字格式
       try {
-        await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'F', 'DATE');
+        await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'B', 'TEXT');
       } catch (error) {
-        console.log('設定生產日期欄位格式失敗，但不影響功能:', error);
+        console.log('設定商家代碼欄位格式失敗，但不影響功能:', error);
+      }
+      
+      // 設定商家名稱欄位為文字格式
+      try {
+        await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'C', 'TEXT');
+      } catch (error) {
+        console.log('設定商家名稱欄位格式失敗，但不影響功能:', error);
+      }
+      
+      // 設定產品代碼欄位為文字格式（確保 001 不會變成 1）
+      try {
+        await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'F', 'TEXT');
+      } catch (error) {
+        console.log('設定產品代碼欄位格式失敗，但不影響功能:', error);
+      }
+      
+              // 設定進貨日期欄位的日期格式
+      try {
+        await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'H', 'DATE');
+      } catch (error) {
+                  console.log('設定進貨日期欄位格式失敗，但不影響功能:', error);
       }
       
       // 設定金額欄位的數字格式
       try {
-        await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'H', 'NUMBER');
+        await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'J', 'NUMBER');
       } catch (error) {
         console.log('設定金額欄位格式失敗，但不影響功能:', error);
       }
@@ -964,18 +987,28 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
         </View>
 
         <View style={styles.managementSection}>
-          <Text style={styles.sectionTitle}>產品管理</Text>
+          <Text style={styles.sectionTitle}>管理功能</Text>
           <Text style={styles.sectionDescription}>
-            查看產品資訊和生成條碼
+            管理商家和產品資訊
           </Text>
 
-          <TouchableOpacity
-            style={styles.managementButton}
-            onPress={() => navigation.navigate('productManagement')}
-          >
-            <Text style={styles.managementButtonIcon}>📋</Text>
-            <Text style={styles.managementButtonText}>產品管理</Text>
-          </TouchableOpacity>
+          <View style={styles.managementButtonsContainer}>
+            <TouchableOpacity
+              style={[styles.managementButton, styles.merchantButton]}
+              onPress={() => navigation.navigate('merchantManagement')}
+            >
+              <Text style={styles.managementButtonIcon}>🏪</Text>
+              <Text style={styles.managementButtonText}>商家管理</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.managementButton, styles.productButton]}
+              onPress={() => navigation.navigate('productManagement')}
+            >
+              <Text style={styles.managementButtonIcon}>📋</Text>
+              <Text style={styles.managementButtonText}>產品管理</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {scannedData && parsedProduct && (
@@ -985,33 +1018,39 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
               <Text style={styles.resultLabel}>條碼內容:</Text>
               <Text style={styles.resultData}>{scannedData}</Text>
             </View>
-            {parsedProduct && (
-              <View style={styles.productInfoCard}>
-                <Text style={styles.productInfoTitle}>產品資訊</Text>
-                {parsedProduct.isValid ? (
-                  <View style={styles.productInfoTable}>
-                    <View style={styles.productInfoRow}>
-                      <Text style={styles.productInfoLabel}>產品類別:</Text>
-                      <Text style={styles.productInfoValue}>{parsedProduct.categoryName} ({parsedProduct.category})</Text>
-                    </View>
-                    <View style={styles.productInfoRow}>
-                      <Text style={styles.productInfoLabel}>產品代碼:</Text>
-                      <Text style={styles.productInfoValue}>{parsedProduct.productCode}</Text>
-                    </View>
-                    <View style={styles.productInfoRow}>
-                      <Text style={styles.productInfoLabel}>產品名稱:</Text>
-                      <Text style={styles.productInfoValue}>{parsedProduct.productName}</Text>
-                    </View>
-                    <View style={styles.productInfoRow}>
-                      <Text style={styles.productInfoLabel}>生產日期:</Text>
-                      <Text style={styles.productInfoValue}>{parsedProduct.formattedDate}</Text>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>❌ {parsedProduct.error}</Text>
-                  </View>
-                )}
+                            {parsedProduct && (
+                  <View style={styles.productInfoCard}>
+                    <Text style={styles.productInfoTitle}>產品資訊</Text>
+                    {parsedProduct.isValid ? (
+                      <View style={styles.productInfoTable}>
+                        <View style={styles.productInfoRow}>
+                          <Text style={styles.productInfoLabel}>商家:</Text>
+                          <Text style={styles.productInfoValue}>
+                            {parsedProduct.merchantName || parsedProduct.merchantCode || '無'}
+                          </Text>
+                        </View>
+                        <View style={styles.productInfoRow}>
+                          <Text style={styles.productInfoLabel}>產品類別:</Text>
+                          <Text style={styles.productInfoValue}>{parsedProduct.categoryName} ({parsedProduct.category})</Text>
+                        </View>
+                        <View style={styles.productInfoRow}>
+                          <Text style={styles.productInfoLabel}>產品代碼:</Text>
+                          <Text style={styles.productInfoValue}>{parsedProduct.productCode}</Text>
+                        </View>
+                        <View style={styles.productInfoRow}>
+                          <Text style={styles.productInfoLabel}>產品名稱:</Text>
+                          <Text style={styles.productInfoValue}>{parsedProduct.productName}</Text>
+                        </View>
+                        <View style={styles.productInfoRow}>
+                          <Text style={styles.productInfoLabel}>進貨日期:</Text>
+                          <Text style={styles.productInfoValue}>{parsedProduct.formattedDate}</Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.errorContainer}>
+                        <Text style={styles.errorText}>❌ {parsedProduct.error}</Text>
+                      </View>
+                    )}
                 
                 {/* 金額輸入欄位 */}
                 {parsedProduct.isValid && (
@@ -1107,6 +1146,12 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                     {parsedProduct.isValid ? (
                       <View style={styles.modalProductInfoTable}>
                         <View style={styles.modalProductInfoRow}>
+                          <Text style={styles.modalProductInfoLabel}>商家:</Text>
+                          <Text style={styles.modalProductInfoValue}>
+                            {parsedProduct.merchantName || parsedProduct.merchantCode || '無'}
+                          </Text>
+                        </View>
+                        <View style={styles.modalProductInfoRow}>
                           <Text style={styles.modalProductInfoLabel}>產品類別:</Text>
                           <Text style={styles.modalProductInfoValue}>{parsedProduct.categoryName} ({parsedProduct.category})</Text>
                         </View>
@@ -1119,7 +1164,7 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                           <Text style={styles.modalProductInfoValue}>{parsedProduct.productName}</Text>
                         </View>
                         <View style={styles.modalProductInfoRow}>
-                          <Text style={styles.modalProductInfoLabel}>生產日期:</Text>
+                          <Text style={styles.modalProductInfoLabel}>進貨日期:</Text>
                           <Text style={styles.modalProductInfoValue}>{parsedProduct.formattedDate}</Text>
                         </View>
                       </View>
@@ -2019,13 +2064,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
+  managementButtonsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
   managementButton: {
+    flex: 1,
     backgroundColor: '#28a745',
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
+  },
+  merchantButton: {
+    backgroundColor: '#ff9500',
+  },
+  productButton: {
+    backgroundColor: '#28a745',
   },
   managementButtonIcon: {
     fontSize: 20,

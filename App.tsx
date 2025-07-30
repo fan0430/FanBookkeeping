@@ -17,9 +17,10 @@ import AddTransactionScreen from './src/screens/AddTransactionScreen';
 import StatsScreen from './src/screens/StatsScreen';
 import POSSystemScreen from './src/screens/POSSystemScreen';
 import ProductManagementScreen from './src/screens/ProductManagementScreen';
+import MerchantManagementScreen from './src/screens/MerchantManagementScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 
-type ScreenType = 'mainSelect' | 'ledgerSelect' | 'home' | 'addTransaction' | 'stats' | 'posSystem' | 'productManagement' | 'settings';
+type ScreenType = 'mainSelect' | 'ledgerSelect' | 'home' | 'addTransaction' | 'stats' | 'posSystem' | 'productManagement' | 'merchantManagement' | 'settings';
 
 // 在 App 啟動時初始化 Google Sign-In
 GoogleSignin.configure({
@@ -67,6 +68,8 @@ function AppContent(): React.JSX.Element {
         return <POSSystemScreen {...navigationProps} />;
       case 'productManagement':
         return <ProductManagementScreen {...navigationProps} />;
+      case 'merchantManagement':
+        return <MerchantManagementScreen {...navigationProps} />;
       case 'settings':
         return <SettingsScreen {...navigationProps} />;
       default:
