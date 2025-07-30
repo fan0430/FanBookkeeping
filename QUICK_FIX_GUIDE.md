@@ -67,10 +67,10 @@ cd .. && npx react-native run-android
 3. 清除應用程式資料
 
 ### 問題 2：條碼解析錯誤
-**原因：** 條碼格式不支援或類別/產品不存在
+**原因：** 條碼格式不支援或商品未登入
 **解決方案：**
 1. 確認條碼格式：`MERCHANT-CATEGORY-XXX-PRODUCTID-YYYYMMDD` 或 `CATEGORY-XXX-YYYYMMDD`
-2. 系統支援寬鬆解析，未知類別/產品仍可正常解析
+2. **商品必須先登入**：如果顯示「商品未登入」錯誤，請先在商品管理中新增該商品
 3. 商品ID為 `'0'` 或空時會顯示為「無」
 
 ### 問題 3：NETWORK_ERROR

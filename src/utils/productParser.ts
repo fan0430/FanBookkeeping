@@ -319,10 +319,22 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
   
   // 檢查產品代碼是否存在
   let productName = allProducts[productCode];
+  
   if (!productName) {
-    // 如果產品不存在，使用產品代碼作為名稱，並顯示警告
-    productName = `產品${productCode}`;
-    console.warn(`未知的產品代碼：${productCode}，使用產品代碼作為名稱`);
+    // 如果產品不存在，直接返回錯誤，不繼續後續處理
+    return {
+      merchantCode,
+      merchantName,
+      category,
+      categoryName: category,
+      productCode,
+      productName: '',
+      productId: '',
+      productionDate,
+      formattedDate: '',
+      isValid: false,
+      error: `商品未登入：${category}-${productCode}，請先在商品管理中新增此商品`,
+    };
   }
   
   // 如果條碼中沒有商品ID，從產品資料中獲取

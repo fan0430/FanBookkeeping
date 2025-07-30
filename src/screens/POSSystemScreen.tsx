@@ -1056,6 +1056,7 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                           <Text style={styles.productInfoLabel}>進貨日期:</Text>
                           <Text style={styles.productInfoValue}>{parsedProduct.formattedDate}</Text>
                         </View>
+
                       </View>
                     ) : (
                       <View style={styles.errorContainer}>
@@ -1182,6 +1183,7 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                           <Text style={styles.modalProductInfoLabel}>進貨日期:</Text>
                           <Text style={styles.modalProductInfoValue}>{parsedProduct.formattedDate}</Text>
                         </View>
+
                       </View>
                     ) : (
                       <View style={styles.modalErrorContainer}>
