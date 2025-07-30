@@ -271,31 +271,36 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
       throw new Error('產品資料無效');
     }
 
-    // 取得台灣時間 (UTC+8) - 使用 Date 物件而不是字串
+        // 取得台灣時間 (UTC+8) 並格式化為 YYYY-MM-DD HH:mm:ss
     const now = new Date();
     const taiwanTime = new Date(now.getTime() + (8 * 60 * 60 * 1000)); // UTC+8
+    
+    // 格式化為 YYYY-MM-DD HH:mm:ss
+    const year = taiwanTime.getFullYear();
+    const month = String(taiwanTime.getMonth() + 1).padStart(2, '0');
+    const day = String(taiwanTime.getDate()).padStart(2, '0');
+    const hours = String(taiwanTime.getHours()).padStart(2, '0');
+    const minutes = String(taiwanTime.getMinutes()).padStart(2, '0');
+    const seconds = String(taiwanTime.getSeconds()).padStart(2, '0');
+    const formattedTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 
     // 將金額轉換為數字格式，如果無法轉換則保持為空字串
     const numericAmount = amount && !isNaN(parseFloat(amount)) ? parseFloat(amount) : '';
 
-            // 將進貨日期轉換為 Date 物件
-    const productionDateObj = product.productionDate ? 
-      new Date(
-        parseInt(product.productionDate.substring(0, 4)),
-        parseInt(product.productionDate.substring(4, 6)) - 1,
-        parseInt(product.productionDate.substring(6, 8))
-      ) : null;
+    // 將進貨日期轉換為台灣時間的日期字串 (YYYY-MM-DD)
+    const productionDateStr = product.productionDate ? 
+      `${product.productionDate.substring(0, 4)}-${product.productionDate.substring(4, 6)}-${product.productionDate.substring(6, 8)}` : '';
 
     const rowData = [
-      taiwanTime, // 掃描時間 (Date 物件，Google Sheets 會自動識別為日期時間)
+      formattedTime, // 掃描時間 (YYYY-MM-DD HH:mm:ss 格式)
       product.merchantCode || '', // 商家代碼
       product.merchantName || '', // 商家名稱
       product.category,
       product.categoryName,
       `'${product.productCode}`, // 產品代碼：加上單引號強制文字格式
       product.productName,
-              productionDateObj, // 進貨日期 (Date 物件)
-      product.formattedDate, // 格式化日期 (保持字串格式用於顯示)
+      product.productId, // 商品ID
+      productionDateStr, // 進貨日期 (YYYY-MM-DD 格式)
       numericAmount, // 販售價格 (數字格式)
     ];
 
@@ -315,15 +320,15 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
       '產品類別名稱',
       '產品代碼',
       '產品名稱',
-              '進貨日期',
-      '格式化日期',
+      '商品ID',
+      '進貨日期',
       '販售價格',
     ];
 
     await this.appendRow(spreadsheetId, '產品資料', headers);
 
-    // 設定時間欄位的日期時間格式
-    await this.setColumnFormat(spreadsheetId, '產品資料', 'A', 'DATETIME');
+    // 設定時間欄位為文字格式 (因為使用 YYYY-MM-DD HH:mm:ss 字串)
+    await this.setColumnFormat(spreadsheetId, '產品資料', 'A', 'TEXT');
     
     // 設定商家代碼欄位為文字格式
     await this.setColumnFormat(spreadsheetId, '產品資料', 'B', 'TEXT');
@@ -337,8 +342,11 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
     // 設定產品代碼欄位為文字格式（確保 001 不會變成 1）
     await this.setColumnFormat(spreadsheetId, '產品資料', 'F', 'TEXT');
     
-            // 設定進貨日期欄位的日期格式
-    await this.setColumnFormat(spreadsheetId, '產品資料', 'H', 'DATE');
+    // 設定商品ID欄位為文字格式
+    await this.setColumnFormat(spreadsheetId, '產品資料', 'H', 'TEXT');
+    
+    // 設定進貨日期欄位為文字格式 (因為使用 YYYY-MM-DD 字串)
+    await this.setColumnFormat(spreadsheetId, '產品資料', 'I', 'TEXT');
     
     // 設定金額欄位的數字格式
     await this.setColumnFormat(spreadsheetId, '產品資料', 'J', 'NUMBER');

@@ -347,12 +347,14 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
+    paddingHorizontal: 16,
   },
   merchantItem: {
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    marginHorizontal: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -385,13 +387,15 @@ const styles = StyleSheet.create({
   merchantActions: {
     flexDirection: 'row',
     gap: 8,
+    justifyContent: 'flex-start',
   },
   actionButton: {
-    flex: 1,
+    flex: 0,
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 6,
     alignItems: 'center',
+    minWidth: 80,
   },
   editButton: {
     backgroundColor: '#FF9500',

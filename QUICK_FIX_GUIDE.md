@@ -66,21 +66,28 @@ cd .. && npx react-native run-android
 2. 等待 5-10 分鐘讓設定生效
 3. 清除應用程式資料
 
-### 問題 2：NETWORK_ERROR
+### 問題 2：條碼解析錯誤
+**原因：** 條碼格式不支援或類別/產品不存在
+**解決方案：**
+1. 確認條碼格式：`MERCHANT-CATEGORY-XXX-PRODUCTID-YYYYMMDD` 或 `CATEGORY-XXX-YYYYMMDD`
+2. 系統支援寬鬆解析，未知類別/產品仍可正常解析
+3. 商品ID為 `'0'` 或空時會顯示為「無」
+
+### 問題 3：NETWORK_ERROR
 **原因：** 網路連線問題
 **解決方案：**
 1. 檢查網路連線
 2. 嘗試使用 WiFi 而不是行動網路
 3. 重新啟動設備
 
-### 問題 3：Play Services 不可用
+### 問題 4：Play Services 不可用
 **原因：** Google Play Services 問題
 **解決方案：**
 1. 更新 Google Play Services
 2. 清除 Google Play Services 快取
 3. 重新啟動設備
 
-### 問題 4：OAuth 同意畫面問題
+### 問題 5：OAuth 同意畫面問題
 **原因：** 應用程式未驗證
 **解決方案：**
 1. 確認應用程式狀態為「測試中」

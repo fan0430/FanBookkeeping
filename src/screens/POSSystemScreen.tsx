@@ -601,15 +601,15 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
         '產品類別名稱',
         '產品代碼',
         '產品名稱',
+        '商品ID',
         '進貨日期',
-        '格式化日期',
         '販售價格',
       ];
       await googleSheetsService.appendRow(newSpreadsheetId, '產品資料', headers);
       
-      // 設定時間欄位的日期時間格式
+      // 設定時間欄位為文字格式 (因為使用 YYYY-MM-DD HH:mm:ss 字串)
       try {
-        await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'A', 'DATETIME');
+        await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'A', 'TEXT');
       } catch (error) {
         console.log('設定時間欄位格式失敗，但不影響功能:', error);
       }
@@ -635,11 +635,18 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
         console.log('設定產品代碼欄位格式失敗，但不影響功能:', error);
       }
       
-              // 設定進貨日期欄位的日期格式
+      // 設定商品ID欄位為文字格式
       try {
-        await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'H', 'DATE');
+        await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'H', 'TEXT');
       } catch (error) {
-                  console.log('設定進貨日期欄位格式失敗，但不影響功能:', error);
+        console.log('設定商品ID欄位格式失敗，但不影響功能:', error);
+      }
+      
+      // 設定進貨日期欄位為文字格式 (因為使用 YYYY-MM-DD 字串)
+      try {
+        await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'I', 'TEXT');
+      } catch (error) {
+        console.log('設定進貨日期欄位格式失敗，但不影響功能:', error);
       }
       
       // 設定金額欄位的數字格式
@@ -1042,6 +1049,10 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                           <Text style={styles.productInfoValue}>{parsedProduct.productName}</Text>
                         </View>
                         <View style={styles.productInfoRow}>
+                          <Text style={styles.productInfoLabel}>商品ID:</Text>
+                          <Text style={styles.productInfoValue}>{parsedProduct.productId && parsedProduct.productId !== '0' ? parsedProduct.productId : '無'}</Text>
+                        </View>
+                        <View style={styles.productInfoRow}>
                           <Text style={styles.productInfoLabel}>進貨日期:</Text>
                           <Text style={styles.productInfoValue}>{parsedProduct.formattedDate}</Text>
                         </View>
@@ -1162,6 +1173,10 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                         <View style={styles.modalProductInfoRow}>
                           <Text style={styles.modalProductInfoLabel}>產品名稱:</Text>
                           <Text style={styles.modalProductInfoValue}>{parsedProduct.productName}</Text>
+                        </View>
+                        <View style={styles.modalProductInfoRow}>
+                          <Text style={styles.modalProductInfoLabel}>商品ID:</Text>
+                          <Text style={styles.modalProductInfoValue}>{parsedProduct.productId && parsedProduct.productId !== '0' ? parsedProduct.productId : '無'}</Text>
                         </View>
                         <View style={styles.modalProductInfoRow}>
                           <Text style={styles.modalProductInfoLabel}>進貨日期:</Text>

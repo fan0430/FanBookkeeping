@@ -15,128 +15,131 @@ const PRODUCT_CATEGORIES: { [key: string]: string } = {
   'CAN': '罐頭食品',
   'BAK': '烘焙食品',
 };
+// const PRODUCT_CATEGORIES: { [key: string]: string } = {
+ 
+// };
 
-// 產品代碼對應表
-const PRODUCT_CODES: { [key: string]: { [key: string]: string } } = {
+// 產品代碼對應表 - 新格式包含商品ID
+const PRODUCT_CODES: { [key: string]: { [key: string]: { name: string; productId: string } } } = {
   'FRU': {
-    '001': '蘋果',
-    '002': '香蕉',
-    '003': '橙子',
-    '004': '葡萄',
-    '005': '草莓',
-    '006': '梨子',
-    '007': '桃子',
-    '008': '櫻桃',
-    '009': '藍莓',
-    '010': '奇異果',
+    '001': { name: '蘋果', productId: 'FRU001' },
+    '002': { name: '香蕉', productId: 'FRU002' },
+    '003': { name: '橙子', productId: 'FRU003' },
+    '004': { name: '葡萄', productId: 'FRU004' },
+    '005': { name: '草莓', productId: 'FRU005' },
+    '006': { name: '梨子', productId: 'FRU006' },
+    '007': { name: '桃子', productId: 'FRU007' },
+    '008': { name: '櫻桃', productId: 'FRU008' },
+    '009': { name: '藍莓', productId: 'FRU009' },
+    '010': { name: '奇異果', productId: 'FRU010' },
   },
   'VEG': {
-    '001': '胡蘿蔔',
-    '002': '白菜',
-    '003': '洋蔥',
-    '004': '馬鈴薯',
-    '005': '番茄',
-    '006': '青椒',
-    '007': '黃瓜',
-    '008': '茄子',
-    '009': '菠菜',
-    '010': '芹菜',
+    '001': { name: '胡蘿蔔', productId: 'VEG001' },
+    '002': { name: '白菜', productId: 'VEG002' },
+    '003': { name: '洋蔥', productId: 'VEG003' },
+    '004': { name: '馬鈴薯', productId: 'VEG004' },
+    '005': { name: '番茄', productId: 'VEG005' },
+    '006': { name: '青椒', productId: 'VEG006' },
+    '007': { name: '黃瓜', productId: 'VEG007' },
+    '008': { name: '茄子', productId: 'VEG008' },
+    '009': { name: '菠菜', productId: 'VEG009' },
+    '010': { name: '芹菜', productId: 'VEG010' },
   },
   'MEA': {
-    '001': '豬肉',
-    '002': '牛肉',
-    '003': '雞肉',
-    '004': '羊肉',
-    '005': '魚肉',
-    '006': '蝦仁',
-    '007': '培根',
-    '008': '火腿',
-    '009': '香腸',
-    '010': '鴨肉',
+    '001': { name: '豬肉', productId: 'MEA001' },
+    '002': { name: '牛肉', productId: 'MEA002' },
+    '003': { name: '雞肉', productId: 'MEA003' },
+    '004': { name: '羊肉', productId: 'MEA004' },
+    '005': { name: '魚肉', productId: 'MEA005' },
+    '006': { name: '蝦仁', productId: 'MEA006' },
+    '007': { name: '培根', productId: 'MEA007' },
+    '008': { name: '火腿', productId: 'MEA008' },
+    '009': { name: '香腸', productId: 'MEA009' },
+    '010': { name: '鴨肉', productId: 'MEA010' },
   },
   'DAI': {
-    '001': '牛奶',
-    '002': '優格',
-    '003': '起司',
-    '004': '奶油',
-    '005': '酸奶',
-    '006': '乳酪',
-    '007': '鮮奶油',
-    '008': '煉乳',
-    '009': '奶粉',
-    '010': '豆漿',
+    '001': { name: '牛奶', productId: 'DAI001' },
+    '002': { name: '優格', productId: 'DAI002' },
+    '003': { name: '起司', productId: 'DAI003' },
+    '004': { name: '奶油', productId: 'DAI004' },
+    '005': { name: '酸奶', productId: 'DAI005' },
+    '006': { name: '乳酪', productId: 'DAI006' },
+    '007': { name: '鮮奶油', productId: 'DAI007' },
+    '008': { name: '煉乳', productId: 'DAI008' },
+    '009': { name: '奶粉', productId: 'DAI009' },
+    '010': { name: '豆漿', productId: 'DAI010' },
   },
   'GRA': {
-    '001': '白米',
-    '002': '糙米',
-    '003': '麵粉',
-    '004': '麵條',
-    '005': '麵包',
-    '006': '麥片',
-    '007': '玉米',
-    '008': '燕麥',
-    '009': '藜麥',
-    '010': '小米',
+    '001': { name: '白米', productId: 'GRA001' },
+    '002': { name: '糙米', productId: 'GRA002' },
+    '003': { name: '麵粉', productId: 'GRA003' },
+    '004': { name: '麵條', productId: 'GRA004' },
+    '005': { name: '麵包', productId: 'GRA005' },
+    '006': { name: '麥片', productId: 'GRA006' },
+    '007': { name: '玉米', productId: 'GRA007' },
+    '008': { name: '燕麥', productId: 'GRA008' },
+    '009': { name: '藜麥', productId: 'GRA009' },
+    '010': { name: '小米', productId: 'GRA010' },
   },
   'BEV': {
-    '001': '可樂',
-    '002': '果汁',
-    '003': '礦泉水',
-    '004': '茶飲',
-    '005': '咖啡',
-    '006': '啤酒',
-    '007': '紅酒',
-    '008': '白酒',
-    '009': '威士忌',
-    '010': '伏特加',
+    '001': { name: '可樂', productId: 'BEV001' },
+    '002': { name: '果汁', productId: 'BEV002' },
+    '003': { name: '礦泉水', productId: 'BEV003' },
+    '004': { name: '茶飲', productId: 'BEV004' },
+    '005': { name: '咖啡', productId: 'BEV005' },
+    '006': { name: '啤酒', productId: 'BEV006' },
+    '007': { name: '紅酒', productId: 'BEV007' },
+    '008': { name: '白酒', productId: 'BEV008' },
+    '009': { name: '威士忌', productId: 'BEV009' },
+    '010': { name: '伏特加', productId: 'BEV010' },
   },
   'SNK': {
-    '001': '洋芋片',
-    '002': '巧克力',
-    '003': '餅乾',
-    '004': '糖果',
-    '005': '堅果',
-    '006': '爆米花',
-    '007': '果凍',
-    '008': '口香糖',
-    '009': '冰淇淋',
-    '010': '蛋糕',
+    '001': { name: '洋芋片', productId: 'SNK001' },
+    '002': { name: '巧克力', productId: 'SNK002' },
+    '003': { name: '餅乾', productId: 'SNK003' },
+    '004': { name: '糖果', productId: 'SNK004' },
+    '005': { name: '堅果', productId: 'SNK005' },
+    '006': { name: '爆米花', productId: 'SNK006' },
+    '007': { name: '果凍', productId: 'SNK007' },
+    '008': { name: '口香糖', productId: 'SNK008' },
+    '009': { name: '冰淇淋', productId: 'SNK009' },
+    '010': { name: '蛋糕', productId: 'SNK010' },
   },
   'FRO': {
-    '001': '冷凍蔬菜',
-    '002': '冷凍肉類',
-    '003': '冷凍海鮮',
-    '004': '冷凍披薩',
-    '005': '冷凍水餃',
-    '006': '冷凍湯品',
-    '007': '冷凍甜點',
-    '008': '冷凍水果',
-    '009': '冷凍麵食',
-    '010': '冷凍飲料',
+    '001': { name: '冷凍蔬菜', productId: 'FRO001' },
+    '002': { name: '冷凍肉類', productId: 'FRO002' },
+    '003': { name: '冷凍海鮮', productId: 'FRO003' },
+    '004': { name: '冷凍披薩', productId: 'FRO004' },
+    '005': { name: '冷凍水餃', productId: 'FRO005' },
+    '006': { name: '冷凍湯品', productId: 'FRO006' },
+    '007': { name: '冷凍甜點', productId: 'FRO007' },
+    '008': { name: '冷凍水果', productId: 'FRO008' },
+    '009': { name: '冷凍麵食', productId: 'FRO009' },
+    '010': { name: '冷凍飲料', productId: 'FRO010' },
   },
   'CAN': {
-    '001': '罐頭魚',
-    '002': '罐頭蔬菜',
-    '003': '罐頭水果',
-    '004': '罐頭湯品',
-    '005': '罐頭肉類',
-    '006': '罐頭豆類',
-    '007': '罐頭蘑菇',
-    '008': '罐頭玉米',
-    '009': '罐頭番茄',
-    '010': '罐頭鳳梨',
+    '001': { name: '罐頭魚', productId: 'CAN001' },
+    '002': { name: '罐頭蔬菜', productId: 'CAN002' },
+    '003': { name: '罐頭水果', productId: 'CAN003' },
+    '004': { name: '罐頭湯品', productId: 'CAN004' },
+    '005': { name: '罐頭肉類', productId: 'CAN005' },
+    '006': { name: '罐頭豆類', productId: 'CAN006' },
+    '007': { name: '罐頭蘑菇', productId: 'CAN007' },
+    '008': { name: '罐頭玉米', productId: 'CAN008' },
+    '009': { name: '罐頭番茄', productId: 'CAN009' },
+    '010': { name: '罐頭鳳梨', productId: 'CAN010' },
   },
   'BAK': {
-    '001': '吐司',
-    '002': '蛋糕',
-    '003': '餅乾',
-    '004': '麵包',
-    '005': '派',
-    '006': '甜甜圈',
-    '007': '馬芬',
-    '008': '司康',
-    '009': '可頌',
-    '010': '貝果',
+    '001': { name: '吐司', productId: 'BAK001' },
+    '002': { name: '蛋糕', productId: 'BAK002' },
+    '003': { name: '餅乾', productId: 'BAK003' },
+    '004': { name: '麵包', productId: 'BAK004' },
+    '005': { name: '派', productId: 'BAK005' },
+    '006': { name: '甜甜圈', productId: 'BAK006' },
+    '007': { name: '馬芬', productId: 'BAK007' },
+    '008': { name: '司康', productId: 'BAK008' },
+    '009': { name: '可頌', productId: 'BAK009' },
+    '010': { name: '貝果', productId: 'BAK010' },
   },
 };
 
@@ -178,7 +181,7 @@ export const saveCustomCategory = async (categoryCode: string, categoryName: str
 };
 
 // 獲取本地存儲的自定義產品
-export const getCustomProducts = async (): Promise<{ [key: string]: { [key: string]: string } }> => {
+export const getCustomProducts = async (): Promise<{ [key: string]: { [key: string]: { name: string; productId: string } } }> => {
   try {
     const customProductsJson = await AsyncStorage.getItem(CUSTOM_PRODUCTS_KEY);
     return customProductsJson ? JSON.parse(customProductsJson) : {};
@@ -189,7 +192,7 @@ export const getCustomProducts = async (): Promise<{ [key: string]: { [key: stri
 };
 
 // 保存自定義產品到本地存儲
-export const saveCustomProduct = async (category: string, productCode: string, productName: string): Promise<boolean> => {
+export const saveCustomProduct = async (category: string, productCode: string, productName: string, productId: string = '0'): Promise<boolean> => {
   try {
     const customProducts = await getCustomProducts();
     
@@ -198,8 +201,11 @@ export const saveCustomProduct = async (category: string, productCode: string, p
       customProducts[category] = {};
     }
     
-    // 添加新產品
-    customProducts[category][productCode] = productName;
+    // 添加新產品（包含商品ID）
+    customProducts[category][productCode] = {
+      name: productName,
+      productId: productId
+    };
     
     // 保存到本地存儲
     await AsyncStorage.setItem(CUSTOM_PRODUCTS_KEY, JSON.stringify(customProducts));
@@ -212,9 +218,11 @@ export const saveCustomProduct = async (category: string, productCode: string, p
 
 /**
  * 解析條碼格式
- * 格式：CAT-XXX-YYYYMMDD
- * CAT: 類別代碼 (3位)
+ * 格式：MERCHANT-CATEGORY-XXX-PRODUCTID-YYYYMMDD 或 CATEGORY-XXX-YYYYMMDD
+ * MERCHANT: 商家代碼 (新格式)
+ * CAT: 類別代碼
  * XXX: 產品代碼 (3位)
+ * PRODUCTID: 商品ID (新格式包含，舊格式從產品資料獲取)
  * YYYYMMDD: 進貨日期 (8位)
  */
 export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
@@ -226,6 +234,7 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
       categoryName: '',
       productCode: '',
       productName: '',
+      productId: '',
       productionDate: '',
       formattedDate: '',
       isValid: false,
@@ -234,8 +243,8 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
   }
 
   // 檢查條碼格式 - 支援舊格式和新格式
-  const oldBarcodePattern = /^([A-Z]{3})-(\d{3})-(\d{8})$/;
-  const newBarcodePattern = /^([A-Z]+)-([A-Z]{3})-(\d{3})-(\d{8})$/;
+  const oldBarcodePattern = /^([A-Z]+)-(\d{3})-(\d{8})$/;
+  const newBarcodePattern = /^([A-Z]+)-([A-Z]+)-(\d{3})-([A-Z0-9]+)-(\d{8})$/;
   
   let match = barcode.match(newBarcodePattern);
   let isNewFormat = true;
@@ -253,20 +262,22 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
       categoryName: '',
       productCode: '',
       productName: '',
+      productId: '',
       productionDate: '',
       formattedDate: '',
       isValid: false,
-      error: '條碼格式不正確，應為：MERCHANT-CAT-XXX-YYYYMMDD 或 CAT-XXX-YYYYMMDD',
+      error: '條碼格式不正確，應為：MERCHANT-CATEGORY-XXX-PRODUCTID-YYYYMMDD 或 CATEGORY-XXX-YYYYMMDD',
     };
   }
 
   let merchantCode = '';
-  let category, productCode, productionDate;
+  let category, productCode, productId, productionDate;
 
   if (isNewFormat) {
-    [, merchantCode, category, productCode, productionDate] = match;
+    [, merchantCode, category, productCode, productId, productionDate] = match;
   } else {
     [, category, productCode, productionDate] = match;
+    productId = '0'; // 舊格式沒有商品ID，使用預設值
   }
 
   // 如果是新格式，驗證商家代碼
@@ -290,43 +301,31 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
   const allCategories = await getProductCategories();
   
   // 檢查類別是否存在
-  if (!allCategories[category]) {
-    return {
-      merchantCode,
-      merchantName,
-      category,
-      categoryName: '',
-      productCode,
-      productName: '',
-      productionDate: '',
-      formattedDate: '',
-      isValid: false,
-      error: `未知的產品類別：${category}`,
-    };
+  let categoryName = allCategories[category];
+  if (!categoryName) {
+    // 如果類別不存在，使用類別代碼作為名稱，並顯示警告
+    categoryName = category;
+    console.warn(`未知的產品類別：${category}，使用類別代碼作為名稱`);
   }
-
-  const categoryName = allCategories[category];
 
   // 獲取指定類別的所有產品（包括預設和自定義產品）
   const allProducts = await getProductsByCategory(category);
   
   // 檢查產品代碼是否存在
-  if (!allProducts[productCode]) {
-    return {
-      merchantCode,
-      merchantName,
-      category,
-      categoryName,
-      productCode,
-      productName: '',
-      productionDate: '',
-      formattedDate: '',
-      isValid: false,
-      error: `未知的產品代碼：${productCode}`,
-    };
+  let productName = allProducts[productCode];
+  if (!productName) {
+    // 如果產品不存在，使用產品代碼作為名稱，並顯示警告
+    productName = `產品${productCode}`;
+    console.warn(`未知的產品代碼：${productCode}，使用產品代碼作為名稱`);
   }
-
-  const productName = allProducts[productCode];
+  
+  // 如果條碼中沒有商品ID，從產品資料中獲取
+  if (!productId || productId === '0') {
+    productId = await getProductId(category, productCode);
+    if (!productId || productId === '') {
+      productId = '0';
+    }
+  }
 
   // 驗證日期格式
   const year = parseInt(productionDate.substring(0, 4));
@@ -346,6 +345,7 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
       categoryName,
       productCode,
       productName,
+      productId,
       productionDate,
       formattedDate: '',
       isValid: false,
@@ -363,6 +363,7 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
     categoryName,
     productCode,
     productName,
+    productId,
     productionDate,
     formattedDate,
     isValid: true,
@@ -388,13 +389,61 @@ export const getProductsByCategory = async (category: string): Promise<{ [key: s
   const customProducts = await getCustomProducts();
   const categoryCustomProducts = customProducts[category] || {};
   
+  // 處理預設產品的資料結構
+  const processedDefaultProducts: { [key: string]: string } = {};
+  Object.keys(defaultProducts).forEach(productCode => {
+    const product = defaultProducts[productCode];
+    processedDefaultProducts[productCode] = product.name;
+  });
+  
+  // 處理自定義產品的資料結構
+  const processedCustomProducts: { [key: string]: string } = {};
+  Object.keys(categoryCustomProducts).forEach(productCode => {
+    const product = categoryCustomProducts[productCode];
+    if (typeof product === 'string') {
+      // 舊格式：直接是字串
+      processedCustomProducts[productCode] = product;
+    } else {
+      // 新格式：包含 name 和 productId
+      processedCustomProducts[productCode] = product.name;
+    }
+  });
+  
   // 合併預設產品和自定義產品
-  return { ...defaultProducts, ...categoryCustomProducts };
+  return { ...processedDefaultProducts, ...processedCustomProducts };
+};
+
+/**
+ * 獲取產品的商品ID
+ */
+export const getProductId = async (category: string, productCode: string): Promise<string> => {
+  try {
+    // 先檢查預設產品
+    const defaultProducts = PRODUCT_CODES[category] || {};
+    const defaultProduct = defaultProducts[productCode];
+    if (defaultProduct && defaultProduct.productId) {
+      return defaultProduct.productId;
+    }
+    
+    // 再檢查自定義產品
+    const customProducts = await getCustomProducts();
+    const categoryProducts = customProducts[category] || {};
+    const customProduct = categoryProducts[productCode];
+    
+    if (customProduct && typeof customProduct === 'object' && customProduct.productId) {
+      return customProduct.productId;
+    }
+    
+    return '0'; // 如果沒有商品ID，返回預設值 '0'
+  } catch (error) {
+    console.error('獲取產品商品ID失敗:', error);
+    return '0';
+  }
 };
 
 /**
  * 生成產品條碼
  */
-export const generateBarcode = (merchantCode: string, category: string, productCode: string, productionDate: string): string => {
-  return `${merchantCode}-${category}-${productCode}-${productionDate}`;
+export const generateBarcode = (merchantCode: string, category: string, productCode: string, productId: string, productionDate: string): string => {
+  return `${merchantCode}-${category}-${productCode}-${productId}-${productionDate}`;
 }; 

@@ -42,6 +42,7 @@ export interface Product {
   categoryName: string;
   productCode: string;
   productName: string;
+  productId: string; // 商家進貨時的商品ID
   productionDate: string;
   formattedDate: string;
   barcode: string;
@@ -54,6 +55,7 @@ export interface ParsedBarcode {
   categoryName: string;
   productCode: string;
   productName: string;
+  productId: string; // 商家進貨時的商品ID
   productionDate: string;
   formattedDate: string;
   isValid: boolean;

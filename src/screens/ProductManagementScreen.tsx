@@ -13,7 +13,7 @@ import {
 import Clipboard from '@react-native-clipboard/clipboard';
 import { NavigationProps } from '../types';
 import { Merchant } from '../types';
-import { getProductCategories, getProductsByCategory, generateBarcode, saveCustomProduct, saveCustomCategory } from '../utils/productParser';
+import { getProductCategories, getProductsByCategory, generateBarcode, saveCustomProduct, saveCustomCategory, getProductId } from '../utils/productParser';
 import { loadMerchants } from '../utils/merchantService';
 
 const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
@@ -23,10 +23,12 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<{ code: string; name: string } | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [productionDate, setProductionDate] = useState('');
   
   // 新增產品相關狀態
   const [newProductName, setNewProductName] = useState('');
+  const [newProductId, setNewProductId] = useState('');
   
   // 新增類別相關狀態
   const [newCategoryCode, setNewCategoryCode] = useState('');
@@ -83,12 +85,15 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
     setSelectedCategory(category);
   };
 
-  const handleProductSelect = (code: string, name: string) => {
+  const handleProductSelect = async (code: string, name: string) => {
     setSelectedProduct({ code, name });
+    // 獲取商品ID
+    const productId = await getProductId(selectedCategory, code);
+    setSelectedProductId(productId);
     setShowBarcodeModal(true);
   };
 
-  const generateProductBarcode = () => {
+  const generateProductBarcode = async () => {
     if (!selectedMerchant) {
       Alert.alert('錯誤', '請先選擇商家');
       return;
@@ -98,6 +103,9 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
               Alert.alert('錯誤', '請輸入進貨日期');
       return;
     }
+
+    // 從產品資料中獲取商品ID
+    const productId = await getProductId(selectedCategory, selectedProduct.code);
 
     // 驗證日期格式 (YYYYMMDD)
     const datePattern = /^\d{8}$/;
@@ -113,10 +121,10 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
       return;
     }
 
-    const barcode = generateBarcode(selectedMerchantData.code, selectedCategory, selectedProduct.code, productionDate);
+    const barcode = generateBarcode(selectedMerchantData.code, selectedCategory, selectedProduct.code, productId, productionDate);
     Alert.alert(
       '產品條碼',
-              `條碼：${barcode}\n\n商家：${selectedMerchantData.name}\n產品：${selectedProduct.name}\n類別：${categories[selectedCategory]}\n進貨日期：${productionDate}`,
+              `條碼：${barcode}\n\n商家：${selectedMerchantData.name}\n產品：${selectedProduct.name}\n類別：${categories[selectedCategory]}\n商品ID：${productId && productId !== '0' ? productId : '無'}\n進貨日期：${productionDate}`,
       [
         { 
           text: '複製條碼', 
@@ -167,18 +175,19 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
     const newProductCode = generateNextProductCode(selectedCategory);
 
     // 保存到本地存儲
-    const success = await saveCustomProduct(selectedCategory, newProductCode, newProductName);
+    const success = await saveCustomProduct(selectedCategory, newProductCode, newProductName, newProductId);
     
     if (success) {
       Alert.alert(
         '新增產品成功',
-        `產品代碼：${newProductCode}\n產品名稱：${newProductName}\n類別：${categories[selectedCategory]}`,
+        `產品代碼：${newProductCode}\n產品名稱：${newProductName}\n商品ID：${newProductId && newProductId !== '0' ? newProductId : '無'}\n類別：${categories[selectedCategory]}`,
         [
           {
             text: '確定',
             onPress: async () => {
               setShowAddProductModal(false);
               setNewProductName('');
+              setNewProductId('');
               // 重新載入產品列表以顯示新產品
               await loadProducts();
             }
@@ -196,10 +205,10 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
       return;
     }
 
-    // 驗證類別代碼格式 (3位大寫字母)
-    const codePattern = /^[A-Z]{3}$/;
+    // 驗證類別代碼格式 (大寫字母)
+    const codePattern = /^[A-Z]+$/;
     if (!codePattern.test(newCategoryCode)) {
-      Alert.alert('錯誤', '類別代碼應為3位大寫字母，例如：ABC');
+      Alert.alert('錯誤', '類別代碼應為大寫字母，例如：ABC、FRUITS');
       return;
     }
 
@@ -349,7 +358,12 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
               </Text>
               <TouchableOpacity
                 style={styles.addProductButton}
-                onPress={() => setShowAddProductModal(true)}
+                onPress={() => {
+                  setShowAddProductModal(true);
+                  // 自動填入建議的商品ID
+                  const suggestedProductId = `${selectedCategory}${generateNextProductCode(selectedCategory)}`;
+                  setNewProductId(suggestedProductId);
+                }}
               >
                 <Text style={styles.addProductButtonText}>+ 新增產品</Text>
               </TouchableOpacity>
@@ -383,8 +397,13 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
                 <Text style={styles.productDisplayText}>
                   類別: {categories[selectedCategory]}
                 </Text>
+                <Text style={styles.productDisplayText}>
+                  商品ID: {selectedProductId && selectedProductId !== '0' ? selectedProductId : '無'}
+                </Text>
               </View>
             )}
+            
+
             
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>進貨日期 (YYYYMMDD):</Text>
@@ -439,6 +458,10 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
               <Text style={styles.productDisplayText}>
                 {generateNextProductCode(selectedCategory)} (自動生成)
               </Text>
+              <Text style={styles.productDisplayLabel}>預設商品ID:</Text>
+              <Text style={styles.productDisplayText}>
+                {selectedCategory}{generateNextProductCode(selectedCategory)} (自動生成，可修改)
+              </Text>
             </View>
             
             <View style={styles.inputContainer}>
@@ -448,6 +471,17 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
                 value={newProductName}
                 onChangeText={setNewProductName}
                 placeholder="例如: 芒果"
+                maxLength={20}
+              />
+            </View>
+            
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>商品ID (選填):</Text>
+              <TextInput
+                style={styles.dateInput}
+                value={newProductId}
+                onChangeText={setNewProductId}
+                placeholder={`建議: ${selectedCategory}${generateNextProductCode(selectedCategory)}`}
                 maxLength={20}
               />
             </View>
@@ -485,13 +519,13 @@ const ProductManagementScreen: React.FC<NavigationProps> = ({ navigation }) => {
             <Text style={styles.modalTitle}>新增產品類別</Text>
             
                          <View style={styles.inputContainer}>
-               <Text style={styles.inputLabel}>類別代碼 (3位大寫字母):</Text>
+               <Text style={styles.inputLabel}>類別代碼 (大寫字母):</Text>
                <TextInput
                  style={styles.dateInput}
                  value={newCategoryCode}
                  onChangeText={setNewCategoryCode}
-                 placeholder="例如: ABC"
-                 maxLength={3}
+                 placeholder="例如: ABC、FRUITS"
+                 maxLength={10}
                  autoCapitalize="characters"
                />
              </View>
@@ -655,6 +689,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#212529',
   },
+  productId: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginTop: 2,
+  },
   productArrow: {
     fontSize: 18,
     color: '#6c757d',
@@ -745,7 +784,6 @@ const styles = StyleSheet.create({
   merchantItem: {
     backgroundColor: '#fff',
     padding: 12,
-    marginHorizontal: 8,
     marginVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
@@ -768,8 +806,8 @@ const styles = StyleSheet.create({
   merchantsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
+    justifyContent: 'flex-start',
+    gap: 10,
   },
 });
 
