@@ -130,34 +130,44 @@ const MerchantManagementScreen: React.FC<NavigationProps> = ({ navigation }) => 
     setShowEditModal(true);
   };
 
-  const renderMerchantItem = ({ item }: { item: Merchant }) => (
-    <View style={styles.merchantItem}>
-      <View style={styles.merchantInfo}>
-        <Text style={styles.merchantName}>{item.name}</Text>
-        <Text style={styles.merchantCode}>代碼: {item.code}</Text>
-        {item.description && (
-          <Text style={styles.merchantDescription}>{item.description}</Text>
+  const renderMerchantItem = ({ item }: { item: Merchant }) => {
+    // 檢查是否為預設商家
+    const isDefaultMerchant = item.code === 'ANPIN' || item.code === '15P';
+    
+    return (
+      <View style={styles.merchantItem}>
+        <View style={styles.merchantInfo}>
+          <Text style={styles.merchantName}>{item.name}</Text>
+          <Text style={styles.merchantCode}>代碼: {item.code}</Text>
+          {item.description && (
+            <Text style={styles.merchantDescription}>{item.description}</Text>
+          )}
+          <Text style={styles.merchantDate}>
+            建立時間: {item.createdAt.toLocaleDateString('zh-TW')}
+          </Text>
+          {isDefaultMerchant && (
+            <Text style={styles.defaultMerchantLabel}>預設商家</Text>
+          )}
+        </View>
+        {!isDefaultMerchant && (
+          <View style={styles.merchantActions}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.editButton]}
+              onPress={() => openEditModal(item)}
+            >
+              <Text style={styles.actionButtonText}>編輯</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={() => handleDeleteMerchant(item)}
+            >
+              <Text style={styles.actionButtonText}>刪除</Text>
+            </TouchableOpacity>
+          </View>
         )}
-        <Text style={styles.merchantDate}>
-          建立時間: {item.createdAt.toLocaleDateString('zh-TW')}
-        </Text>
       </View>
-      <View style={styles.merchantActions}>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.editButton]}
-          onPress={() => openEditModal(item)}
-        >
-          <Text style={styles.actionButtonText}>編輯</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.deleteButton]}
-          onPress={() => handleDeleteMerchant(item)}
-        >
-          <Text style={styles.actionButtonText}>刪除</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -383,6 +393,12 @@ const styles = StyleSheet.create({
   merchantDate: {
     fontSize: 12,
     color: '#999',
+  },
+  defaultMerchantLabel: {
+    fontSize: 12,
+    color: '#007AFF',
+    fontWeight: '600',
+    marginTop: 4,
   },
   merchantActions: {
     flexDirection: 'row',
