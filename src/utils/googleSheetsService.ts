@@ -266,7 +266,7 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
   }
 
   // 將掃描的產品資料新增到試算表
-  async addProductToSheet(spreadsheetId: string, product: ParsedBarcode, amount?: string): Promise<void> {
+  async addProductToSheet(spreadsheetId: string, product: ParsedBarcode, amount?: string, note?: string): Promise<void> {
     if (!product.isValid) {
       throw new Error('產品資料無效');
     }
@@ -302,6 +302,7 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
       product.productId, // 商品ID
       productionDateStr, // 進貨日期 (YYYY-MM-DD 格式)
       numericAmount, // 販售價格 (數字格式)
+      note || '', // 備註
     ];
 
     await this.appendRowToNextEmptyRow(spreadsheetId, '產品資料', rowData);
@@ -323,6 +324,7 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
       '商品ID',
       '進貨日期',
       '販售價格',
+      '備註',
     ];
 
     await this.appendRow(spreadsheetId, '產品資料', headers);
@@ -350,6 +352,9 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
     
     // 設定金額欄位的數字格式
     await this.setColumnFormat(spreadsheetId, '產品資料', 'J', 'NUMBER');
+    
+    // 設定備註欄位為文字格式
+    await this.setColumnFormat(spreadsheetId, '產品資料', 'K', 'TEXT');
 
     return spreadsheetId;
   }

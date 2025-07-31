@@ -45,6 +45,7 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [isSelectingSpreadsheet, setIsSelectingSpreadsheet] = useState(false);
   const [amount, setAmount] = useState<string>('');
+  const [note, setNote] = useState<string>('');
   const [isLoadingSpreadsheets, setIsLoadingSpreadsheets] = useState(false);
   const [spreadsheets, setSpreadsheets] = useState<SpreadsheetInfo[]>([]);
   const [showSpreadsheetsModal, setShowSpreadsheetsModal] = useState(false);
@@ -154,6 +155,7 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
     setParsedProduct(null);
     setManualInput('');
     setAmount('');
+    setNote('');
     setShowResultModal(false);
     setShowCameraModal(false);
   };
@@ -604,6 +606,7 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
         '商品ID',
         '進貨日期',
         '販售價格',
+        '備註',
       ];
       await googleSheetsService.appendRow(newSpreadsheetId, '產品資料', headers);
       
@@ -654,6 +657,13 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
         await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'J', 'NUMBER');
       } catch (error) {
         console.log('設定金額欄位格式失敗，但不影響功能:', error);
+      }
+      
+      // 設定備註欄位為文字格式
+      try {
+        await googleSheetsService.setColumnFormat(newSpreadsheetId, '產品資料', 'K', 'TEXT');
+      } catch (error) {
+        console.log('設定備註欄位格式失敗，但不影響功能:', error);
       }
       
       // 儲存試算表資訊到本地
@@ -710,7 +720,7 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
         googleSheetsService.setAccessToken(token);
       }
 
-      await googleSheetsService.addProductToSheet(spreadsheetId, parsedProduct, amount);
+      await googleSheetsService.addProductToSheet(spreadsheetId, parsedProduct, amount, note);
       
       // 更新試算表的最後使用時間
       if (authState.user?.id) {
@@ -1095,6 +1105,22 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                   </View>
                 )}
                 
+                {/* 備註輸入欄位 */}
+                {parsedProduct.isValid && (
+                  <View style={styles.noteInputContainer}>
+                    <Text style={styles.noteInputLabel}>備註 (可選):</Text>
+                    <TextInput
+                      style={styles.noteInput}
+                      placeholder="請輸入備註 (可選)"
+                      value={note}
+                      onChangeText={setNote}
+                      multiline={true}
+                      numberOfLines={3}
+                      maxLength={200}
+                    />
+                  </View>
+                )}
+                
                 {/* 只有登入、資料正確且有試算表才顯示上傳按鈕 */}
                 {authState.isSignedIn && parsedProduct.isValid && spreadsheetId && (
                   <UploadButton onPress={handleUploadToCloud} />
@@ -1218,6 +1244,22 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                           }}
                           keyboardType="numeric"
                           returnKeyType="done"
+                        />
+                      </View>
+                    )}
+
+                    {/* 備註輸入欄位 */}
+                    {parsedProduct.isValid && (
+                      <View style={styles.modalNoteInputContainer}>
+                        <Text style={styles.modalNoteInputLabel}>備註 (可選):</Text>
+                        <TextInput
+                          style={styles.modalNoteInput}
+                          placeholder="請輸入備註 (可選)"
+                          value={note}
+                          onChangeText={setNote}
+                          multiline={true}
+                          numberOfLines={3}
+                          maxLength={200}
                         />
                       </View>
                     )}
@@ -2550,6 +2592,48 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  noteInputContainer: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#dee2e6',
+  },
+  noteInputLabel: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  noteInput: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 6,
+    padding: 12,
+    fontSize: 16,
+    color: '#212529',
+  },
+  modalNoteInputContainer: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#dee2e6',
+  },
+  modalNoteInputLabel: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  modalNoteInput: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 6,
+    padding: 10,
+    fontSize: 14,
+    color: '#212529',
   },
 });
 
