@@ -30,6 +30,9 @@ import {
 } from '../utils/spreadsheetStorage';
 import { isReleaseMode, isDebugMode, getEnvironmentInfo, logEnvironmentInfo } from '../utils/helpers';
 import { testApiConnection, logApiEnvironmentInfo } from '../utils/apiConfig';
+import { loadMerchants } from '../utils/merchantService';
+import { saveCustomProduct, getCustomProducts, getProductsByCategory, saveCustomCategory, isClearingInProgress, clearAllProductData } from '../utils/productParser';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -55,6 +58,20 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
   const [columnDataCount, setColumnDataCount] = useState<number | null>(null);
   const [sharedSpreadsheetId, setSharedSpreadsheetId] = useState('1hk08GAdEqrw__4eqgfqc6upQCiroYJUPT2r-zQMsTl0');
   const [sharedSheetName, setSharedSheetName] = useState('20250520安蘋批發');
+  const [autoImportSpreadsheetId, setAutoImportSpreadsheetId] = useState('1hk08GAdEqrw__4eqgfqc6upQCiroYJUPT2r-zQMsTl0');
+  const [autoImportSheetName, setAutoImportSheetName] = useState('20250520安蘋批發');
+  const [selectedMerchant, setSelectedMerchant] = useState<any>(null);
+  const [showMerchantSelector, setShowMerchantSelector] = useState(false);
+  const [columnMapping, setColumnMapping] = useState({
+    productId: 'A',
+    category: 'B',
+    productName: 'C',
+    productCode: 'D',
+    sellingPrice: 'E',
+  });
+  const [previewData, setPreviewData] = useState<any[]>([]);
+  const [importResult, setImportResult] = useState<any>(null);
+  const [merchants, setMerchants] = useState<any[]>([]);
 
   const { authState, signIn, signOut, getAccessToken } = useGoogleAuth();
 
@@ -62,18 +79,171 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
   React.useEffect(() => {
     if (authState.isSignedIn) {
       loadUserSpreadsheetInfo();
+      loadMerchantsList();
     } else {
       setSpreadsheetId('');
       setSpreadsheetInfo(null);
     }
   }, [authState.isSignedIn, authState.user?.id]);
 
+  // 載入商家列表
+  const loadMerchantsList = async () => {
+    try {
+      const merchantsList = await loadMerchants();
+      setMerchants(merchantsList);
+    } catch (error) {
+      console.error('載入商家列表失敗:', error);
+    }
+  };
+
+  // 根據類別名稱生成英文三位數代碼
+  const generateCategoryCode = (categoryName: string): string => {
+    if (!categoryName || categoryName.trim() === '') {
+      return 'GEN'; // 預設代碼
+    }
+
+    // 移除空格和特殊字符，只保留中英文和數字
+    const cleanName = categoryName.replace(/[^\w\u4e00-\u9fa5]/g, '');
+    
+    if (cleanName.length === 0) {
+      return 'GEN';
+    }
+
+    // 如果是純英文，取前3個字符並轉大寫
+    if (/^[a-zA-Z]+$/.test(cleanName)) {
+      return cleanName.substring(0, 3).toUpperCase();
+    }
+
+    // 如果是中文或混合，使用更智能的邏輯
+    const englishWords = cleanName.match(/[a-zA-Z]+/g);
+    if (englishWords && englishWords.length > 0) {
+      // 取每個英文單字的首字母
+      const initials = englishWords.map(word => word.charAt(0)).join('');
+      if (initials.length >= 3) {
+        return initials.substring(0, 3).toUpperCase();
+      } else {
+        // 如果首字母不夠3個，用單字補充
+        const code = initials + englishWords[0].substring(1, 3 - initials.length);
+        return code.toUpperCase();
+      }
+    }
+
+    // 如果是純中文，使用智能的拼音首字母映射
+    if (/^[\u4e00-\u9fa5]+$/.test(cleanName)) {
+      // 為常見的中文類別提供自定義代碼
+      const categoryMapping: { [key: string]: string } = {
+        '男款手鍊': 'MAL', // Male Accessory
+        '女款手鍊': 'FAL', // Female Accessory
+        '項鍊': 'NEC',     // Necklace
+        '耳環': 'EAR',     // Earring
+        '戒指': 'RIN',     // Ring
+        '手錶': 'WAT',     // Watch
+        '包包': 'BAG',     // Bag
+        '鞋子': 'SHO',     // Shoe
+        '衣服': 'CLO',     // Clothing
+        '褲子': 'PAN',     // Pants
+        '帽子': 'HAT',     // Hat
+        '眼鏡': 'GLA',     // Glasses
+        '水果': 'FRU',     // Fruit
+        '蔬菜': 'VEG',     // Vegetable
+        '肉類': 'MEA',     // Meat
+        '海鮮': 'SEA',     // Seafood
+        '飲料': 'BEV',     // Beverage
+        '零食': 'SNA',     // Snack
+        '化妝品': 'COS',   // Cosmetics
+        '保養品': 'SKI',   // Skincare
+      };
+
+      // 檢查是否有預設映射
+      if (categoryMapping[cleanName]) {
+        return categoryMapping[cleanName];
+      }
+
+      // 使用中文字符的規律生成代碼
+      // 方法1：使用前3個字符的拼音首字母（如果可用）
+      // 方法2：使用字符的Unicode值和位置生成唯一代碼
+      const code = generateChineseCode(cleanName);
+      return code;
+    }
+
+    // 如果無法處理，使用預設代碼
+    return 'GEN';
+  };
+
+  // 根據中文字符生成智能代碼
+  const generateChineseCode = (chineseText: string): string => {
+    if (chineseText.length === 0) return 'GEN';
+    
+    // 方法1：使用字符的Unicode值和位置生成代碼
+    let code = '';
+    
+    // 取前3個字符（如果不足3個，重複最後一個字符）
+    const chars = chineseText.substring(0, 3).split('');
+    while (chars.length < 3) {
+      chars.push(chars[chars.length - 1] || '中');
+    }
+    
+    // 為每個字符生成代碼
+    chars.forEach((char, index) => {
+      const unicode = char.charCodeAt(0);
+      // 使用Unicode值、位置和字符長度來生成更唯一的代碼
+      const charCode = 65 + ((unicode + index * 100 + chineseText.length * 10) % 26);
+      code += String.fromCharCode(charCode);
+    });
+    
+    return code;
+  };
+
+  // 生成商品排序ID（根據資料順序）
+  const generateProductId = (index: number): string => {
+    return String(index + 1).padStart(3, '0');
+  };
+
+  // 將欄位代號（如 A、B、C）轉換為陣列索引
+  const getColumnIndex = (columnCode: string): number => {
+    if (!columnCode || columnCode.length === 0) {
+      return 0; // 預設為第一欄
+    }
+    
+    // 將欄位代號轉換為大寫
+    const upperCode = columnCode.toUpperCase();
+    
+    // 如果是單一字母（A-Z），轉換為 0-25
+    if (upperCode.length === 1 && /^[A-Z]$/.test(upperCode)) {
+      return upperCode.charCodeAt(0) - 65; // A=0, B=1, C=2...
+    }
+    
+    // 如果是雙字母（AA-ZZ），轉換為 26-701
+    if (upperCode.length === 2 && /^[A-Z]{2}$/.test(upperCode)) {
+      const first = upperCode.charCodeAt(0) - 65;
+      const second = upperCode.charCodeAt(1) - 65;
+      return (first + 1) * 26 + second;
+    }
+    
+    // 如果無法解析，預設為第一欄
+    console.warn(`無法解析欄位代號: ${columnCode}，使用預設值 0`);
+    return 0;
+  };
+
   // 載入用戶的試算表資訊
   const loadUserSpreadsheetInfo = async () => {
     if (!authState.isSignedIn || !authState.user?.id) {
+      // 只有在用戶未登入時才清空狀態
       setSpreadsheetId('');
       setSpreadsheetInfo(null);
       return;
+    }
+
+    // 檢查是否正在進行清除操作，如果是則跳過載入
+    try {
+      const clearingInProgress = await isClearingInProgress();
+      if (clearingInProgress) {
+        console.log('檢測到正在進行清除操作，跳過試算表資訊載入');
+        return;
+      }
+    } catch (error) {
+      console.error('檢查清除狀態失敗:', error);
+      // 如果檢查失敗，繼續正常載入流程
     }
 
     try {
@@ -81,17 +251,23 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
       const savedSpreadsheetInfo = await getUserSpreadsheetInfo(authState.user.id);
       
       if (savedSpreadsheetId && savedSpreadsheetInfo) {
+        // 成功載入試算表資訊
         setSpreadsheetId(savedSpreadsheetId);
         setSpreadsheetInfo(savedSpreadsheetInfo);
         console.log('載入用戶試算表資訊:', savedSpreadsheetInfo);
       } else {
-        setSpreadsheetId('');
-        setSpreadsheetInfo(null);
+        // 如果沒有找到試算表資訊，但用戶已登入，保留現有狀態
+        // 不要清空現有的 spreadsheetId 和 spreadsheetInfo
+        console.log('未找到試算表資訊，保留現有狀態');
+        console.log('當前狀態 - spreadsheetId:', spreadsheetId);
+        console.log('當前狀態 - spreadsheetInfo:', spreadsheetInfo);
       }
     } catch (error) {
       console.error('載入用戶試算表資訊失敗:', error);
-      setSpreadsheetId('');
-      setSpreadsheetInfo(null);
+      // 載入失敗時，保留現有狀態，不要清空
+      console.log('載入失敗，保留現有狀態');
+      console.log('當前狀態 - spreadsheetId:', spreadsheetId);
+      console.log('當前狀態 - spreadsheetInfo:', spreadsheetInfo);
     }
   };
 
@@ -830,7 +1006,7 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
 
       Alert.alert('讀取中', '正在讀取共用表單內容...');
       
-      const content = await googleSheetsService.getCellValue(sharedSpreadsheetId.trim(), sharedSheetName.trim(), 'C2');
+      const content = await googleSheetsService.getCellValue(sharedSpreadsheetId.trim(), sharedSheetName.trim(), 'C3');
       setSharedFormContent(content);
       
       Alert.alert('成功', '共用表單內容已成功讀取！');
@@ -902,6 +1078,530 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
       
       Alert.alert('錯誤', errorMessage);
     }
+  };
+
+  const handleAutoImportProducts = async () => {
+    try {
+      if (!authState.isSignedIn) {
+        Alert.alert('錯誤', '請先登入Google帳戶');
+        return;
+      }
+
+      if (!autoImportSpreadsheetId.trim()) {
+        Alert.alert('錯誤', '請輸入試算表 ID');
+        return;
+      }
+
+      if (!autoImportSheetName.trim()) {
+        Alert.alert('錯誤', '請輸入頁籤名稱');
+        return;
+      }
+
+      if (!selectedMerchant) {
+        Alert.alert('錯誤', '請選擇商家');
+        return;
+      }
+
+      console.log('選擇的商家資訊:', selectedMerchant);
+      console.log('商家ID:', selectedMerchant.id);
+      console.log('商家名稱:', selectedMerchant.name);
+
+      setIsUploading(true);
+
+      const token = await getAccessToken();
+      if (token) {
+        googleSheetsService.setAccessToken(token);
+      }
+
+      // 讀取試算表資料
+      const range = `${autoImportSheetName}!A:E`;
+      const response = await googleSheetsService.readSheet(autoImportSpreadsheetId, autoImportSheetName);
+      
+      if (!response || response.length < 2) {
+        throw new Error('試算表中沒有資料或資料格式不正確');
+      }
+
+      // 跳過標題行，處理資料行
+      const dataRows = response.slice(1);
+      const importedProducts = [];
+      let successCount = 0;
+      let failureCount = 0;
+      let duplicateCategoryCount = 0;
+      let saveSuccessCount = 0;
+      let saveFailureCount = 0;
+      let newCategoryCount = 0;
+      let duplicateProductCount = 0;
+
+      // 取得當前日期作為預設進貨日期
+      const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD 格式
+
+      // 用於追蹤已處理的類別和產品，避免重複
+      const processedCategories = new Set();
+      const processedProducts = new Set(); // 用於檢查商品是否重複
+
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        try {
+          if (row.length >= 5) {
+            // 使用用戶設定的欄位對應關係
+            const productId = row[getColumnIndex(columnMapping.productId)] || '';
+            const categoryName = row[getColumnIndex(columnMapping.category)] || '';
+            const productName = row[getColumnIndex(columnMapping.productName)] || '';
+            const productCode = row[getColumnIndex(columnMapping.productCode)] || '';
+            const sellingPrice = row[getColumnIndex(columnMapping.sellingPrice)] || '';
+
+            // 檢查必要欄位
+            if (productName && productCode) {
+              console.log(`\n=== 處理第 ${i + 1} 行資料 ===`);
+              console.log(`類別名稱: ${categoryName}`);
+              console.log(`產品名稱: ${productName}`);
+              console.log(`產品代碼: ${productCode}`);
+              
+              // 生成類別代碼
+              const categoryCode = generateCategoryCode(categoryName);
+              console.log(`生成的類別代碼: ${categoryCode}`);
+              
+              // 生成商品排序ID（根據資料順序）
+              const generatedProductId = generateProductId(i);
+              console.log(`生成的商品ID: ${generatedProductId}`);
+              
+              // 檢查商品是否已經存在（使用商家ID+類別+產品代碼作為唯一標識）
+              const merchantId = selectedMerchant.id || selectedMerchant;
+              const productKey = `${merchantId}-${categoryCode}-${productCode}`;
+              console.log(`商品唯一標識: ${productKey}`);
+              console.log(`是否已處理過此商品: ${processedProducts.has(productKey)}`);
+              
+              if (processedProducts.has(productKey)) {
+                duplicateProductCount++;
+                console.log(`❌ 跳過重複商品: ${productName} (${productCode}) - 類別: ${categoryName}`);
+                continue; // 跳過重複的商品
+              }
+
+              // 檢查類別是否已經處理過，如果沒有則新增類別
+              console.log(`是否已處理過此類別: ${processedCategories.has(categoryName)}`);
+              if (categoryName && !processedCategories.has(categoryName)) {
+                // 新類別，先新增到類別管理
+                console.log(`🆕 新增類別: ${categoryName} -> ${categoryCode}`);
+                try {
+                  const categorySuccess = await saveCustomCategory(categoryCode, categoryName);
+                  if (categorySuccess) {
+                    newCategoryCount++;
+                    console.log(`✅ 成功新增類別: ${categoryName} -> ${categoryCode}`);
+                  } else {
+                    console.log(`⚠️ 類別已存在或新增失敗: ${categoryName} -> ${categoryCode}`);
+                  }
+                } catch (categoryError) {
+                  console.error(`新增類別時發生錯誤: ${categoryName}`, categoryError);
+                }
+                
+                // 標記類別已處理（但商品仍可以繼續處理）
+                processedCategories.add(categoryName);
+                console.log(`已標記類別 ${categoryName} 為已處理`);
+              } else if (categoryName) {
+                console.log(`📋 使用現有類別: ${categoryName} -> ${categoryCode}`);
+              }
+
+              // 嘗試保存產品到產品管理系統
+              try {
+                console.log(`準備保存產品: 商家ID=${merchantId}, 類別=${categoryCode}, 代碼=${productCode}, 名稱=${productName}, ID=${generatedProductId}`);
+                console.log(`欄位對應: 商品ID=${columnMapping.productId}, 類別=${columnMapping.category}, 名稱=${columnMapping.productName}, 代碼=${columnMapping.productCode}, 價格=${columnMapping.sellingPrice}`);
+                
+                const saveSuccess = await saveCustomProduct(
+                  merchantId,           // 商家ID
+                  categoryCode,         // 生成的類別代碼
+                  productCode,          // 產品代碼
+                  productName,          // 產品名稱
+                  generatedProductId    // 生成的商品排序ID
+                );
+
+                console.log(`保存結果: ${saveSuccess ? '成功' : '失敗'}`);
+
+                if (saveSuccess) {
+                  saveSuccessCount++;
+                  processedProducts.add(productKey); // 標記為已處理
+                  console.log(`✅ 成功保存產品: ${productName} (${productCode}) - 類別: ${categoryCode} - ID: ${generatedProductId}`);
+                } else {
+                  saveFailureCount++;
+                  console.log(`❌ 保存產品失敗: ${productName} (${productCode})`);
+                }
+              } catch (saveError) {
+                saveFailureCount++;
+                console.error(`❌ 保存產品時發生錯誤: ${productName}`, saveError);
+              }
+
+              const product = {
+                productId: productId,
+                category: categoryCode,
+                categoryName: categoryName,
+                productName: productName,
+                productCode: productCode,
+                purchaseDate: currentDate,
+                sellingPrice: sellingPrice,
+                generatedProductId: generatedProductId,
+              };
+
+              importedProducts.push(product);
+              successCount++;
+            } else {
+              failureCount++;
+            }
+          }
+        } catch (error) {
+          failureCount++;
+          console.error('處理行資料時發生錯誤:', error);
+        }
+      }
+
+      const result = {
+        success: true,
+        message: `成功讀取 ${importedProducts.length} 筆商品資料`,
+        successCount,
+        failureCount,
+        duplicateCategoryCount,
+        saveSuccessCount,
+        saveFailureCount,
+        newCategoryCount,
+        duplicateProductCount,
+        previewData: importedProducts
+      };
+
+      setImportResult(result);
+      setPreviewData(importedProducts);
+
+      // 驗證資料是否真的保存到了AsyncStorage
+      try {
+        const savedProducts = await getCustomProducts();
+        console.log('AsyncStorage中的產品資料:', savedProducts);
+        
+        if (selectedMerchant && (selectedMerchant.id || selectedMerchant)) {
+          const merchantId = selectedMerchant.id || selectedMerchant;
+          const merchantProducts = savedProducts[merchantId] || {};
+          console.log(`商家 ${selectedMerchant.name || '未知'} 的產品資料:`, merchantProducts);
+          
+          // 計算該商家的總產品數量
+          let totalProductCount = 0;
+          Object.values(merchantProducts).forEach(categoryProducts => {
+            totalProductCount += Object.keys(categoryProducts).length;
+          });
+          console.log(`商家 ${selectedMerchant.name || '未知'} 總共有 ${totalProductCount} 個產品`);
+        }
+      } catch (verifyError) {
+        console.error('驗證保存資料時發生錯誤:', verifyError);
+      }
+
+      setIsUploading(false);
+      
+      let alertMessage = `成功讀取 ${importedProducts.length} 筆商品資料！`;
+      if (saveSuccessCount > 0) {
+        alertMessage += `\n\n✅ 已成功保存 ${saveSuccessCount} 筆產品到產品管理系統`;
+        if (newCategoryCount > 0) {
+          alertMessage += `\n🆕 新增了 ${newCategoryCount} 個產品類別`;
+        }
+        if (duplicateProductCount > 0) {
+          alertMessage += `\n🔄 跳過了 ${duplicateProductCount} 個重複商品`;
+        }
+        alertMessage += `\n\n📝 處理邏輯說明:`;
+        alertMessage += `\n• 類別處理：遇到新類別時自動新增，相同類別跳過`;
+        alertMessage += `\n• 商品處理：每個類別下檢查商品是否重複，不重複則新增`;
+        alertMessage += `\n• 類別代碼：根據類別名稱自動生成英文三位數代碼`;
+        alertMessage += `\n• 商品排序ID：按資料順序自動生成 001, 002, 003...`;
+        alertMessage += `\n\n現在您可以在產品管理頁面查看這些產品了！`;
+      }
+      if (saveFailureCount > 0) {
+        alertMessage += `\n\n❌ 有 ${saveFailureCount} 筆產品保存失敗，請檢查產品資料格式`;
+      }
+      
+      Alert.alert('自動登入完成', alertMessage);
+    } catch (error) {
+      console.error('匯入商品資料錯誤:', error);
+      Alert.alert('錯誤', `匯入商品資料失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      setIsUploading(false);
+    }
+  };
+
+  const handlePreviewImport = async () => {
+    try {
+      if (!authState.isSignedIn) {
+        Alert.alert('錯誤', '請先登入Google帳戶');
+        return;
+      }
+
+      if (!autoImportSpreadsheetId.trim()) {
+        Alert.alert('錯誤', '請輸入試算表 ID');
+        return;
+      }
+
+      if (!autoImportSheetName.trim()) {
+        Alert.alert('錯誤', '請輸入頁籤名稱');
+        return;
+      }
+
+      Alert.alert('預覽中', '正在讀取試算表資料...');
+
+      const token = await getAccessToken();
+      if (token) {
+        googleSheetsService.setAccessToken(token);
+      }
+
+      // 讀取試算表資料進行預覽
+      const response = await googleSheetsService.readSheet(autoImportSpreadsheetId, autoImportSheetName);
+      
+      if (!response || response.length < 2) {
+        throw new Error('試算表中沒有資料或資料格式不正確');
+      }
+
+      // 跳過標題行，處理前5行資料進行預覽
+      const previewRows = response.slice(1, 6);
+      const previewProducts = [];
+
+      // 取得當前日期作為預設進貨日期
+      const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD 格式
+
+      // 用於追蹤已處理的類別，避免重複
+      const processedCategories = new Set();
+      // 用於追蹤每個類別的產品計數
+      const categoryProductCounts: { [key: string]: number } = {};
+
+      for (let i = 0; i < previewRows.length; i++) {
+        const row = previewRows[i];
+        if (row.length >= 5) {
+          // 使用用戶設定的欄位對應關係
+          const productId = row[getColumnIndex(columnMapping.productId)] || '';
+          const categoryName = row[getColumnIndex(columnMapping.category)] || '';
+          const productName = row[getColumnIndex(columnMapping.productName)] || '';
+          const productCode = row[getColumnIndex(columnMapping.productCode)] || '';
+          const sellingPrice = row[getColumnIndex(columnMapping.sellingPrice)] || '';
+
+          // 檢查類別是否已經處理過，如果沒有則新增類別
+          if (categoryName && !processedCategories.has(categoryName)) {
+            processedCategories.add(categoryName);
+            categoryProductCounts[categoryName] = 0;
+          }
+
+          // 生成類別代碼
+          const categoryCode = generateCategoryCode(categoryName);
+          
+          // 生成商品排序ID（根據資料順序）
+          if (categoryName) {
+            const generatedProductId = generateProductId(i);
+            
+            const product = {
+              productId: productId,
+              category: categoryCode, // 使用生成的類別代碼
+              categoryName: categoryName, // 保留原始類別名稱
+              productName: productName,
+              productCode: productCode,
+              purchaseDate: currentDate,
+              sellingPrice: sellingPrice,
+              generatedProductId: generatedProductId, // 生成的商品排序ID
+            };
+
+            previewProducts.push(product);
+          }
+        }
+      }
+
+      setPreviewData(previewProducts);
+      Alert.alert('預覽完成', `找到 ${previewProducts.length} 筆商品資料`);
+    } catch (error) {
+      console.error('預覽資料錯誤:', error);
+      Alert.alert('錯誤', `預覽資料失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+    }
+  };
+
+  // 測試保存產品功能
+  const handleTestSaveProduct = async () => {
+    try {
+      if (!selectedMerchant) {
+        Alert.alert('錯誤', '請先選擇商家');
+        return;
+      }
+
+      Alert.alert('測試中', '正在測試保存產品功能...');
+
+      // 測試保存一個產品
+      const merchantId = selectedMerchant.id || selectedMerchant;
+      console.log('=== 測試保存產品 ===');
+      console.log('選擇的商家物件:', selectedMerchant);
+      console.log('使用的商家ID:', merchantId);
+      console.log('商家類型:', typeof merchantId);
+
+      const testSuccess = await saveCustomProduct(
+        merchantId,
+        'TEST',
+        '001',
+        '測試產品',
+        'TEST001'
+      );
+
+      console.log('保存結果:', testSuccess);
+
+      if (testSuccess) {
+        // 驗證是否真的保存了
+        const savedProducts = await getCustomProducts();
+        console.log('測試後 AsyncStorage 中的產品資料:', savedProducts);
+        
+        if (selectedMerchant && (selectedMerchant.id || selectedMerchant)) {
+          const merchantId = selectedMerchant.id || selectedMerchant;
+          const merchantProducts = savedProducts[merchantId] || {};
+          console.log(`商家 ${selectedMerchant.name || '未知'} 的產品資料:`, merchantProducts);
+          
+          // 計算該商家的總產品數量
+          let totalProductCount = 0;
+          Object.values(merchantProducts).forEach(categoryProducts => {
+            totalProductCount += Object.keys(categoryProducts).length;
+          });
+          console.log(`商家 ${selectedMerchant.name || '未知'} 總共有 ${totalProductCount} 個產品`);
+        }
+
+        // 測試讀取功能
+        console.log('=== 測試讀取功能 ===');
+        const testReadProducts = await getProductsByCategory(merchantId, 'TEST');
+        console.log('使用 getProductsByCategory 讀取的產品:', testReadProducts);
+        console.log('產品數量:', Object.keys(testReadProducts).length);
+
+        Alert.alert('測試成功', '產品已成功保存到 AsyncStorage！\n請查看控制台日誌確認資料。');
+      } else {
+        Alert.alert('測試失敗', '保存產品失敗，請檢查錯誤日誌。');
+      }
+    } catch (error) {
+      console.error('測試保存產品時發生錯誤:', error);
+      Alert.alert('測試失敗', `測試過程發生錯誤: ${error instanceof Error ? error.message : '未知錯誤'}`);
+    }
+  };
+
+  // 清除全部資料功能
+  const handleClearAllData = async () => {
+    try {
+      // 顯示確認對話框
+      Alert.alert(
+        '⚠️ 危險操作',
+        '此操作將清除所有自定義類別和產品資料！\n\n⚠️ 注意：此操作不會影響 Google 表單設定和交易紀錄。\n\n此操作不可逆轉，請確認您真的要清除所有商品資料。',
+        [
+          { text: '取消', style: 'cancel' },
+          {
+            text: '確認清除',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                Alert.alert('清除中', '正在清除商品資料...');
+                
+                // 使用安全的清除函數，只清除商品資料，不影響試算表設定
+                const clearResult = await clearAllProductData();
+                
+                if (clearResult.success) {
+                  // 清除預覽和匯入結果
+                  setPreviewData([]);
+                  setImportResult(null);
+                  
+                  // 重新載入商家列表
+                  await loadMerchantsList();
+                  
+                  Alert.alert(
+                    '清除完成',
+                    clearResult.message + '\n\n' + clearResult.details,
+                    [
+                      {
+                        text: '確定',
+                        onPress: () => {
+                          console.log('商品資料清除完成');
+                        }
+                      }
+                    ]
+                  );
+                } else {
+                  Alert.alert(
+                    '清除失敗',
+                    clearResult.message + '\n\n' + clearResult.details,
+                    [{ text: '確定', style: 'default' }]
+                  );
+                }
+              } catch (clearError) {
+                console.error('清除資料時發生錯誤:', clearError);
+                Alert.alert('清除失敗', `清除資料時發生錯誤: ${clearError instanceof Error ? clearError.message : '未知錯誤'}`);
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('清除資料確認時發生錯誤:', error);
+      Alert.alert('錯誤', `操作失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+    }
+  };
+
+  // 測試類別代碼生成功能
+  const handleTestCategoryCodeGeneration = () => {
+    const testCategories = [
+      '男款手鍊',
+      '女款手鍊', 
+      '項鍊',
+      '耳環',
+      '戒指',
+      '手錶',
+      '包包',
+      '鞋子',
+      '衣服',
+      '褲子',
+      '帽子',
+      '眼鏡',
+      '水果',
+      '蔬菜',
+      '肉類',
+      '海鮮',
+      '飲料',
+      '零食',
+      '化妝品',
+      '保養品',
+      '測試類別1',
+      '測試類別2',
+      'Test Category',
+      'Mixed 混合類別'
+    ];
+
+    console.log('=== 測試類別代碼生成 ===');
+    console.log('📊 預設映射類別:');
+    testCategories.slice(0, 20).forEach(category => {
+      const code = generateCategoryCode(category);
+      console.log(`${category} → ${code}`);
+    });
+    
+    console.log('\n🔤 自定義生成類別:');
+    testCategories.slice(20, 22).forEach(category => {
+      const code = generateCategoryCode(category);
+      console.log(`${category} → ${code}`);
+    });
+    
+    console.log('\n🌍 英文類別:');
+    testCategories.slice(22, 23).forEach(category => {
+      const code = generateCategoryCode(category);
+      console.log(`${category} → ${code}`);
+    });
+    
+    console.log('\n🔀 混合類別:');
+    testCategories.slice(23, 24).forEach(category => {
+      const code = generateCategoryCode(category);
+      console.log(`${category} → ${code}`);
+    });
+
+    // 測試中文字符代碼生成規律
+    console.log('\n🔍 中文字符代碼生成規律測試:');
+    const chineseTest = ['男', '女', '項', '耳', '戒', '手', '包', '鞋', '衣', '褲'];
+    chineseTest.forEach(char => {
+      const code = generateChineseCode(char);
+      console.log(`字符 "${char}" (Unicode: ${char.charCodeAt(0)}) → ${code}`);
+    });
+
+    Alert.alert(
+      '測試完成',
+      '類別代碼生成測試完成！\n\n請查看控制台日誌確認：\n' +
+      '1. 預設映射類別（如男款手鍊→MAL）\n' +
+      '2. 自定義生成類別（根據字符規律）\n' +
+      '3. 英文類別（取前3字母）\n' +
+      '4. 混合類別（英文+中文）\n' +
+      '5. 中文字符代碼生成規律\n\n' +
+      '注意：相同類別名稱應該生成相同代碼，不同類別名稱應該生成不同代碼。'
+    );
   };
 
   return (
@@ -1195,6 +1895,260 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
               <Text style={styles.sharedFormResultTitle}>欄位統計</Text>
               <Text style={styles.sharedFormResultLabel}>A 欄位總筆數:</Text>
               <Text style={styles.sharedFormResultData}>{columnDataCount} 筆</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.autoImportSection}>
+          <Text style={styles.sectionTitle}>自動登入商品資訊</Text>
+          <Text style={styles.sectionDescription}>
+            從試算表自動登入商品相關資訊，設定欄位對應關係
+          </Text>
+
+          {/* 試算表設定 */}
+          <View style={styles.importInputFieldsContainer}>
+            <View style={styles.importInputFieldRow}>
+              <Text style={styles.importInputFieldLabel}>試算表 ID:</Text>
+              <TextInput
+                style={styles.importInputField}
+                placeholder="請輸入試算表 ID"
+                value={autoImportSpreadsheetId}
+                onChangeText={setAutoImportSpreadsheetId}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+            
+            <View style={styles.importInputFieldRow}>
+              <Text style={styles.importInputFieldLabel}>頁籤名稱:</Text>
+              <TextInput
+                style={styles.importInputField}
+                placeholder="請輸入頁籤名稱"
+                value={autoImportSheetName}
+                onChangeText={setAutoImportSheetName}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+          </View>
+
+          {/* 商家選擇器 */}
+          <View style={styles.merchantSelectorContainer}>
+            <Text style={styles.merchantSelectorLabel}>選擇商家:</Text>
+            <TouchableOpacity
+              style={styles.merchantSelectorButton}
+              onPress={() => setShowMerchantSelector(true)}
+            >
+              <Text style={styles.merchantSelectorButtonText}>
+                {selectedMerchant ? `${selectedMerchant.name} (${selectedMerchant.code})` : '請選擇商家'}
+              </Text>
+              <Text style={styles.merchantSelectorButtonIcon}>▼</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 欄位對應設定 */}
+          <View style={styles.columnMappingContainer}>
+            <Text style={styles.columnMappingTitle}>欄位對應設定:</Text>
+            <Text style={styles.columnMappingSubtitle}>請指定各欄位在試算表中的位置 (例如: A, B, C...)</Text>
+            
+            <View style={styles.columnMappingGrid}>
+              <View style={styles.columnMappingRow}>
+                <Text style={styles.columnMappingLabel}>商品ID:</Text>
+                <TextInput
+                  style={styles.columnMappingInput}
+                  placeholder="A"
+                  value={columnMapping.productId}
+                  onChangeText={(text) => setColumnMapping(prev => ({ ...prev, productId: text.toUpperCase() }))}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={2}
+                />
+              </View>
+              
+              <View style={styles.columnMappingRow}>
+                <Text style={styles.columnMappingLabel}>產品類別:</Text>
+                <TextInput
+                  style={styles.columnMappingInput}
+                  placeholder="B"
+                  value={columnMapping.category}
+                  onChangeText={(text) => setColumnMapping(prev => ({ ...prev, category: text.toUpperCase() }))}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={2}
+                />
+              </View>
+              
+              <View style={styles.columnMappingRow}>
+                <Text style={styles.columnMappingLabel}>產品名稱:</Text>
+                <TextInput
+                  style={styles.columnMappingInput}
+                  placeholder="C"
+                  value={columnMapping.productName}
+                  onChangeText={(text) => setColumnMapping(prev => ({ ...prev, productName: text.toUpperCase() }))}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={2}
+                />
+              </View>
+              
+              <View style={styles.columnMappingRow}>
+                <Text style={styles.columnMappingLabel}>產品代碼:</Text>
+                <TextInput
+                  style={styles.columnMappingInput}
+                  placeholder="D"
+                  value={columnMapping.productCode}
+                  onChangeText={(text) => setColumnMapping(prev => ({ ...prev, productCode: text.toUpperCase() }))}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={2}
+                />
+              </View>
+              
+              <View style={styles.columnMappingRow}>
+                <Text style={styles.columnMappingLabel}>販售價格:</Text>
+                <TextInput
+                  style={styles.columnMappingInput}
+                  placeholder="E"
+                  value={columnMapping.sellingPrice}
+                  onChangeText={(text) => setColumnMapping(prev => ({ ...prev, sellingPrice: text.toUpperCase() }))}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={2}
+                />
+              </View>
+            </View>
+          </View>
+
+          {/* 操作按鈕 */}
+          <View style={styles.autoImportButtonsContainer}>
+            <TouchableOpacity
+              style={styles.autoImportButton}
+              onPress={handleAutoImportProducts}
+            >
+              <Text style={styles.autoImportButtonIcon}>📥</Text>
+              <Text style={styles.autoImportButtonText}>開始自動登入</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.previewButton}
+              onPress={handlePreviewImport}
+            >
+              <Text style={styles.previewButtonIcon}>👁️</Text>
+              <Text style={styles.previewButtonText}>預覽資料</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 測試按鈕 */}
+          <View style={styles.testButtonContainer}>
+            <TouchableOpacity
+              style={styles.testButton}
+              onPress={handleTestSaveProduct}
+            >
+              <Text style={styles.testButtonIcon}>🧪</Text>
+              <Text style={styles.testButtonText}>測試保存產品</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 測試類別代碼生成按鈕 */}
+          <View style={styles.testCategoryCodeButtonContainer}>
+            <TouchableOpacity
+              style={styles.testCategoryCodeButton}
+              onPress={handleTestCategoryCodeGeneration}
+            >
+              <Text style={styles.testCategoryCodeButtonIcon}>🔤</Text>
+              <Text style={styles.testCategoryCodeButtonText}>測試類別代碼</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 清除資料按鈕 */}
+          <View style={styles.clearDataButtonContainer}>
+            <TouchableOpacity
+              style={styles.clearDataButton}
+              onPress={handleClearAllData}
+            >
+              <Text style={styles.clearDataButtonIcon}>🗑️</Text>
+              <Text style={styles.clearDataButtonText}>清除全部資料</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 預覽結果 */}
+          {previewData && (
+            <View style={styles.previewResultCard}>
+              <Text style={styles.previewResultTitle}>預覽結果</Text>
+              <Text style={styles.previewResultSubtitle}>
+                找到 {previewData.length} 筆商品資料
+              </Text>
+              
+              {/* 顯示欄位對應資訊 */}
+              <View style={styles.columnMappingInfo}>
+                <Text style={styles.columnMappingInfoTitle}>使用的欄位對應:</Text>
+                <Text style={styles.columnMappingInfoText}>
+                  商品ID: {columnMapping.productId} | 類別: {columnMapping.category} | 名稱: {columnMapping.productName}
+                </Text>
+                <Text style={styles.columnMappingInfoText}>
+                  代碼: {columnMapping.productCode} | 價格: {columnMapping.sellingPrice}
+                </Text>
+              </View>
+              
+              <ScrollView style={styles.previewDataList} showsVerticalScrollIndicator={false}>
+                {previewData.slice(0, 5).map((item, index) => (
+                  <View key={index} style={styles.previewDataItem}>
+                    <Text style={styles.previewDataLabel}>商品 {index + 1}:</Text>
+                    <Text style={styles.previewDataValue}>
+                      {item.productName || '無名稱'} - {item.productCode || '無代碼'}
+                    </Text>
+                    <Text style={styles.previewDataDetails}>
+                      類別: {item.categoryName || '無類別'} → {item.category || '無代碼'}
+                    </Text>
+                    <Text style={styles.previewDataDetails}>
+                      商品ID: {item.generatedProductId || '無ID'}
+                    </Text>
+                  </View>
+                ))}
+                {previewData.length > 5 && (
+                  <Text style={styles.previewDataMore}>
+                    ... 還有 {previewData.length - 5} 筆資料
+                  </Text>
+                )}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* 匯入結果 */}
+          {importResult && (
+            <View style={styles.importResultCard}>
+              <Text style={styles.importResultTitle}>匯入結果</Text>
+              <Text style={styles.importResultMessage}>{importResult.message}</Text>
+              {importResult.success && (
+                <Text style={styles.importResultStats}>
+                  成功匯入: {importResult.successCount} 筆 | 失敗: {importResult.failureCount} 筆
+                  {importResult.duplicateCategoryCount > 0 && (
+                    <Text style={styles.duplicateCategoryStats}>
+                      {'\n'}跳過重複類別: {importResult.duplicateCategoryCount} 個
+                    </Text>
+                  )}
+                  {importResult.newCategoryCount > 0 && (
+                    <Text style={styles.newCategoryStats}>
+                      {'\n'}🆕 新增類別: {importResult.newCategoryCount} 個
+                    </Text>
+                  )}
+                  {importResult.duplicateProductCount > 0 && (
+                    <Text style={styles.duplicateProductStats}>
+                      {'\n'}🔄 跳過重複商品: {importResult.duplicateProductCount} 個
+                    </Text>
+                  )}
+                  {importResult.saveSuccessCount > 0 && (
+                    <Text style={styles.saveSuccessStats}>
+                      {'\n'}✅ 成功保存到產品管理: {importResult.saveSuccessCount} 筆
+                    </Text>
+                  )}
+                  {importResult.saveFailureCount > 0 && (
+                    <Text style={styles.saveFailureStats}>
+                      {'\n'}❌ 保存到產品管理失敗: {importResult.saveFailureCount} 筆
+                    </Text>
+                  )}
+                </Text>
+              )}
             </View>
           )}
         </View>
@@ -1743,6 +2697,66 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
                 <View style={styles.spreadsheetListBottomSpacer} />
               </ScrollView>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* 商家選擇器 Modal */}
+      <Modal
+        visible={showMerchantSelector}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowMerchantSelector(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.merchantSelectorModalContent}>
+            <View style={styles.merchantSelectorModalHeader}>
+              <Text style={styles.merchantSelectorModalTitle}>選擇商家</Text>
+              <TouchableOpacity
+                style={styles.merchantSelectorModalCloseButton}
+                onPress={() => setShowMerchantSelector(false)}
+              >
+                <Text style={styles.merchantSelectorModalCloseButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.merchantSelectorModalBody}>
+              {merchants.length === 0 ? (
+                <View style={styles.merchantSelectorEmptyContainer}>
+                  <Text style={styles.merchantSelectorEmptyText}>📁 沒有找到商家</Text>
+                  <Text style={styles.merchantSelectorEmptySubText}>
+                    請先在商家管理頁面新增商家。
+                  </Text>
+                </View>
+              ) : (
+                merchants.map((merchant) => (
+                  <TouchableOpacity
+                    key={merchant.id}
+                    style={[
+                      styles.merchantSelectorItem,
+                      selectedMerchant?.id === merchant.id && styles.merchantSelectorItemActive
+                    ]}
+                    onPress={() => {
+                      setSelectedMerchant(merchant);
+                      setShowMerchantSelector(false);
+                    }}
+                  >
+                    <View style={styles.merchantSelectorItemInfo}>
+                      <Text style={styles.merchantSelectorItemName}>{merchant.name}</Text>
+                      <Text style={styles.merchantSelectorItemCode}>代碼: {merchant.code}</Text>
+                      {merchant.description && (
+                        <Text style={styles.merchantSelectorItemDescription}>{merchant.description}</Text>
+                      )}
+                    </View>
+                    {selectedMerchant?.id === merchant.id && (
+                      <Text style={styles.merchantSelectorItemCheck}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
+              {/* 底部間距元素 */}
+              <View style={styles.merchantSelectorListBottomSpacer} />
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -2902,6 +3916,430 @@ const styles = StyleSheet.create({
     padding: 10,
     fontSize: 14,
     color: '#212529',
+  },
+  autoImportSection: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  importInputFieldsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  importInputFieldRow: {
+    flex: 1,
+  },
+  importInputFieldLabel: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
+    marginBottom: 5,
+  },
+  importInputField: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 6,
+    padding: 10,
+    fontSize: 14,
+    color: '#212529',
+  },
+  merchantSelectorContainer: {
+    marginBottom: 15,
+  },
+  merchantSelectorLabel: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
+    marginBottom: 5,
+  },
+  merchantSelectorButton: {
+    backgroundColor: '#007bff',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  merchantSelectorButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  merchantSelectorButtonIcon: {
+    fontSize: 20,
+    marginLeft: 10,
+  },
+  columnMappingContainer: {
+    marginBottom: 15,
+  },
+  columnMappingTitle: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
+    marginBottom: 5,
+  },
+  columnMappingSubtitle: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginBottom: 10,
+  },
+  columnMappingGrid: {
+    flexDirection: 'column',
+    gap: 10,
+  },
+  columnMappingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  columnMappingLabel: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
+    marginBottom: 5,
+    flex: 1,
+  },
+  columnMappingInput: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 6,
+    padding: 10,
+    fontSize: 14,
+    color: '#212529',
+    width: 60,
+    textAlign: 'center',
+  },
+  autoImportButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  autoImportButton: {
+    backgroundColor: '#28a745',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    width: '48%',
+  },
+  autoImportButtonIcon: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  autoImportButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  previewButton: {
+    backgroundColor: '#007bff',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    width: '48%',
+  },
+  previewButtonIcon: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  previewButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  previewResultCard: {
+    backgroundColor: '#f8f9fa',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 15,
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+  },
+  previewResultTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#212529',
+    marginBottom: 10,
+  },
+  previewResultSubtitle: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
+    marginBottom: 5,
+  },
+  previewDataList: {
+    maxHeight: 150,
+  },
+  previewDataItem: {
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  previewDataLabel: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
+  },
+  previewDataValue: {
+    fontSize: 14,
+    color: '#212529',
+    fontWeight: 'bold',
+  },
+  previewDataMore: {
+    fontSize: 12,
+    color: '#6c757d',
+    textAlign: 'center',
+    marginTop: 5,
+  },
+  importResultCard: {
+    backgroundColor: '#f8f9fa',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 15,
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+  },
+  importResultTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#212529',
+    marginBottom: 10,
+  },
+  importResultMessage: {
+    fontSize: 14,
+    color: '#6c757d',
+    marginBottom: 5,
+  },
+  importResultStats: {
+    fontSize: 12,
+    color: '#28a745',
+    fontWeight: 'bold',
+  },
+  duplicateCategoryStats: {
+    fontSize: 12,
+    color: '#dc3545',
+    fontWeight: 'bold',
+  },
+  saveSuccessStats: {
+    fontSize: 12,
+    color: '#28a745',
+    fontWeight: 'bold',
+  },
+  saveFailureStats: {
+    fontSize: 12,
+    color: '#dc3545',
+    fontWeight: 'bold',
+  },
+  newCategoryStats: {
+    fontSize: 12,
+    color: '#28a745',
+    fontWeight: 'bold',
+  },
+  duplicateProductStats: {
+    fontSize: 12,
+    color: '#dc3545',
+    fontWeight: 'bold',
+  },
+  merchantSelectorModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    width: '90%',
+    maxWidth: 400,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  merchantSelectorModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  merchantSelectorModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#212529',
+  },
+  merchantSelectorModalCloseButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#f8f9fa',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  merchantSelectorModalCloseButtonText: {
+    fontSize: 18,
+    color: '#6c757d',
+    fontWeight: 'bold',
+  },
+  merchantSelectorModalBody: {
+    padding: 20,
+  },
+  merchantSelectorEmptyContainer: {
+    padding: 60,
+    alignItems: 'center',
+    minHeight: 200,
+  },
+  merchantSelectorEmptyText: {
+    fontSize: 18,
+    color: '#6c757d',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  merchantSelectorEmptySubText: {
+    fontSize: 14,
+    color: '#6c757d',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  merchantSelectorItem: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  merchantSelectorItemInfo: {
+    marginBottom: 5,
+  },
+  merchantSelectorItemName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#212529',
+  },
+  merchantSelectorItemCode: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
+  },
+  merchantSelectorItemDescription: {
+    fontSize: 14,
+    color: '#6c757d',
+    marginBottom: 5,
+  },
+  merchantSelectorItemCheck: {
+    fontSize: 16,
+    color: '#28a745',
+    fontWeight: 'bold',
+    textAlign: 'right',
+    marginLeft: 10,
+  },
+  merchantSelectorListBottomSpacer: {
+    height: 20,
+  },
+  merchantSelectorItemActive: {
+    backgroundColor: '#e9ecef',
+  },
+  previewDataDetails: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginBottom: 5,
+  },
+  testButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  testButton: {
+    backgroundColor: '#007bff',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    width: '48%',
+  },
+  testButtonIcon: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  testButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  columnMappingInfo: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#dee2e6',
+  },
+  columnMappingInfoTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#212529',
+    marginBottom: 10,
+  },
+  columnMappingInfoText: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
+    marginBottom: 5,
+  },
+  clearDataButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  clearDataButton: {
+    backgroundColor: '#dc3545',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    width: '48%',
+  },
+  clearDataButtonIcon: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  clearDataButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  testCategoryCodeButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  testCategoryCodeButton: {
+    backgroundColor: '#007bff',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    width: '48%',
+  },
+  testCategoryCodeButtonIcon: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  testCategoryCodeButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

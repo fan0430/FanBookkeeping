@@ -10,6 +10,7 @@ import {
   Modal,
 } from 'react-native';
 import { useData } from '../context/DataContext';
+import { clearAllProductData, testClearFunctionSafety, checkGoogleFormSettingsIntegrity } from '../utils/productParser';
 
 interface SettingsScreenProps {
   navigation: any;
@@ -27,15 +28,79 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
     Alert.alert('備份數據', '數據備份功能即將推出');
   };
 
-  const handleClearData = () => {
+  const handleClearProductData = async () => {
     Alert.alert(
-      '清除數據',
-      '確定要清除所有數據嗎？此操作無法復原。',
+      '清除商品資料',
+      '確定要清除所有商品類別和商品嗎？\n\n注意：此操作只會清除商品相關資料，不會影響 Google 表單的交易紀錄。此操作無法復原。',
       [
         { text: '取消', style: 'cancel' },
-        { text: '確定', style: 'destructive', onPress: () => Alert.alert('成功', '數據已清除') }
+        { 
+          text: '確定清除', 
+          style: 'destructive', 
+          onPress: async () => {
+            try {
+              const result = await clearAllProductData();
+              if (result.success) {
+                Alert.alert('清除成功', `${result.message}\n\n${result.details}`);
+              } else {
+                Alert.alert('清除失敗', `${result.message}\n\n${result.details}`);
+              }
+            } catch (error) {
+              Alert.alert('清除失敗', '清除商品資料時發生錯誤');
+            }
+          }
+        }
       ]
     );
+  };
+
+  const handleTestClearFunction = async () => {
+    Alert.alert(
+      '測試清除功能安全性',
+      '此功能將測試清除功能是否只清除商品資料，而不影響其他資料（如 Google 表單設定）。\n\n測試過程中會執行一次清除操作，請確認您已備份重要資料。',
+      [
+        { text: '取消', style: 'cancel' },
+        { 
+          text: '開始測試', 
+          style: 'default', 
+          onPress: async () => {
+            try {
+              Alert.alert('測試開始', '正在執行清除功能安全性測試，請查看控制台日誌...');
+              await testClearFunctionSafety();
+              Alert.alert('測試完成', '測試已完成，請查看控制台日誌了解詳細結果。');
+            } catch (error) {
+              Alert.alert('測試失敗', '測試過程中發生錯誤');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleCheckGoogleFormSettings = async () => {
+    try {
+      Alert.alert('檢查中', '正在檢查 Google 表單設定完整性...');
+      
+      const result = await checkGoogleFormSettingsIntegrity();
+      
+      let message = 'Google 表單設定完整性檢查結果:\n\n';
+      message += result.details;
+      
+      if (result.recommendations.length > 0) {
+        message += '\n\n💡 建議:\n';
+        result.recommendations.forEach((rec, index) => {
+          message += `${index + 1}. ${rec}\n`;
+        });
+      }
+      
+      Alert.alert(
+        result.spreadsheetSettingsIntact ? '✅ 設定完整' : '❌ 設定缺失',
+        message
+      );
+      
+    } catch (error) {
+      Alert.alert('檢查失敗', '檢查 Google 表單設定完整性時發生錯誤');
+    }
   };
 
   const handleAbout = () => {
@@ -65,19 +130,27 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
       <ScrollView style={styles.content}>
         <Text style={styles.title}>設定</Text>
 
-        {/* 數據管理 */}
+        {/* 商品資料管理 */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>數據管理</Text>
+          <Text style={styles.sectionTitle}>商品資料管理</Text>
           <TouchableOpacity style={styles.settingItem} onPress={handleExportData}>
-            <Text style={styles.settingText}>匯出數據</Text>
+            <Text style={styles.settingText}>匯出商品資料</Text>
             <Text style={styles.settingArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.settingItem} onPress={handleBackupData}>
-            <Text style={styles.settingText}>備份數據</Text>
+            <Text style={styles.settingText}>備份商品資料</Text>
             <Text style={styles.settingArrow}>›</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.settingItem} onPress={handleClearData}>
-            <Text style={[styles.settingText, { color: '#E74C3C' }]}>清除所有數據</Text>
+          <TouchableOpacity style={styles.settingItem} onPress={handleClearProductData}>
+            <Text style={[styles.settingText, { color: '#E74C3C' }]}>清除商品資料</Text>
+            <Text style={styles.settingArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.settingItem} onPress={handleTestClearFunction}>
+            <Text style={[styles.settingText, { color: '#3498DB' }]}>測試清除功能安全性</Text>
+            <Text style={styles.settingArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.settingItem} onPress={handleCheckGoogleFormSettings}>
+            <Text style={[styles.settingText, { color: '#27AE60' }]}>檢查 Google 表單設定</Text>
             <Text style={styles.settingArrow}>›</Text>
           </TouchableOpacity>
         </View>

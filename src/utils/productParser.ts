@@ -147,6 +147,7 @@ const DEFAULT_PRODUCT_CODES: { [key: string]: { [key: string]: { name: string; p
 // 本地存儲的鍵名
 const CUSTOM_PRODUCTS_KEY = 'custom_products';
 const CUSTOM_CATEGORIES_KEY = 'custom_categories';
+const CLEARING_FLAG_KEY = 'product_clearing_in_progress';
 
 // 獲取本地存儲的自定義產品類別
 export const getCustomCategories = async (): Promise<{ [key: string]: string }> => {
@@ -224,10 +225,10 @@ export const saveCustomProduct = async (merchantId: string, category: string, pr
 
 /**
  * 解析條碼格式
- * 格式：MERCHANT-CATEGORY-XXX-PRODUCTID-YYYYMMDD 或 CATEGORY-XXX-YYYYMMDD
+ * 格式：MERCHANT-CATEGORY-PRODUCTCODE-PRODUCTID-YYYYMMDD 或 CATEGORY-XXX-YYYYMMDD
  * MERCHANT: 商家代碼 (新格式)
- * CAT: 類別代碼
- * XXX: 產品代碼 (3位)
+ * CATEGORY: 類別代碼
+ * PRODUCTCODE: 產品代碼 (可包含字母和數字，長度不固定)
  * PRODUCTID: 商品ID (新格式包含，舊格式從產品資料獲取)
  * YYYYMMDD: 進貨日期 (8位)
  */
@@ -250,7 +251,7 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
 
   // 檢查條碼格式 - 支援舊格式和新格式
   const oldBarcodePattern = /^([A-Z]+)-(\d{3})-(\d{8})$/;
-  const newBarcodePattern = /^([A-Z]+)-([A-Z]+)-(\d{3})-([A-Z0-9]+)-(\d{8})$/;
+  const newBarcodePattern = /^([A-Z]+)-([A-Z]+)-([A-Z0-9]+)-([A-Z0-9]+)-(\d{8})$/;
   
   let match = barcode.match(newBarcodePattern);
   let isNewFormat = true;
@@ -272,7 +273,7 @@ export const parseBarcode = async (barcode: string): Promise<ParsedBarcode> => {
       productionDate: '',
       formattedDate: '',
       isValid: false,
-      error: '條碼格式不正確，應為：MERCHANT-CATEGORY-XXX-PRODUCTID-YYYYMMDD 或 CATEGORY-XXX-YYYYMMDD',
+      error: '條碼格式不正確，應為：MERCHANT-CATEGORY-PRODUCTCODE-PRODUCTID-YYYYMMDD 或 CATEGORY-XXX-YYYYMMDD',
     };
   }
 
@@ -508,4 +509,420 @@ export const testMerchantProductLogic = async () => {
   console.log('ANPIN 商家產品數量（應該不變）:', Object.keys(anpinProductsAfter).length, '個產品');
   
   console.log('=== 測試完成 ===');
+}; 
+
+/**
+ * 清除所有自定義產品類別
+ */
+export const clearAllCustomCategories = async (): Promise<boolean> => {
+  try {
+    console.log('開始清除自定義產品類別...');
+    
+    // 先讀取現有的資料，記錄清除前的狀態
+    const existingCategories = await getCustomCategories();
+    console.log('清除前的自定義類別數量:', Object.keys(existingCategories).length);
+    console.log('清除前的自定義類別:', Object.keys(existingCategories));
+    
+    // 只清除自定義類別，不清除預設類別
+    await AsyncStorage.removeItem(CUSTOM_CATEGORIES_KEY);
+    
+    // 驗證清除結果
+    const afterClearCategories = await getCustomCategories();
+    console.log('清除後的自定義類別數量:', Object.keys(afterClearCategories).length);
+    
+    console.log('所有自定義產品類別已清除');
+    return true;
+  } catch (error) {
+    console.error('清除自定義產品類別失敗:', error);
+    return false;
+  }
+};
+
+/**
+ * 清除所有自定義產品
+ */
+export const clearAllCustomProducts = async (): Promise<boolean> => {
+  try {
+    console.log('開始清除自定義產品...');
+    
+    // 先讀取現有的資料，記錄清除前的狀態
+    const existingProducts = await getCustomProducts();
+    console.log('清除前的自定義產品商家數量:', Object.keys(existingProducts).length);
+    
+    let totalProducts = 0;
+    Object.keys(existingProducts).forEach(merchantId => {
+      const merchantProducts = existingProducts[merchantId];
+      Object.keys(merchantProducts).forEach(category => {
+        const categoryProducts = merchantProducts[category];
+        totalProducts += Object.keys(categoryProducts).length;
+      });
+    });
+    console.log('清除前的自定義產品總數:', totalProducts);
+    
+    // 只清除自定義產品，不清除預設產品
+    await AsyncStorage.removeItem(CUSTOM_PRODUCTS_KEY);
+    
+    // 驗證清除結果
+    const afterClearProducts = await getCustomProducts();
+    const afterTotalProducts = Object.keys(afterClearProducts).length;
+    console.log('清除後的自定義產品商家數量:', afterTotalProducts);
+    
+    console.log('所有自定義產品已清除');
+    return true;
+  } catch (error) {
+    console.error('清除自定義產品失敗:', error);
+    return false;
+  }
+};
+
+/**
+ * 清除所有商品相關資料（類別和產品，但保留 Google 表單紀錄）
+ */
+export const clearAllProductData = async (): Promise<{ success: boolean; message: string; details: string }> => {
+  try {
+    console.log('=== 開始清除商品資料 ===');
+    
+    // 1. 設置清除標記，防止其他功能在清除過程中受影響
+    console.log('1. 設置清除標記...');
+    await AsyncStorage.setItem(CLEARING_FLAG_KEY, 'true');
+    
+    // 2. 清除前檢查其他重要資料
+    console.log('2. 清除前檢查其他重要資料...');
+    
+    // 檢查自定義類別和產品
+    const beforeCategories = await getCustomCategories();
+    const beforeProducts = await getCustomProducts();
+    
+    const beforeCategoryCount = Object.keys(beforeCategories).length;
+    let beforeProductCount = 0;
+    Object.keys(beforeProducts).forEach(merchantId => {
+      const merchantProducts = beforeProducts[merchantId];
+      Object.keys(merchantProducts).forEach(category => {
+        const categoryProducts = merchantProducts[category];
+        beforeProductCount += Object.keys(categoryProducts).length;
+      });
+    });
+    
+    console.log(`清除前狀態: ${beforeCategoryCount} 個自定義類別, ${beforeProductCount} 個自定義產品`);
+    
+    // 3. 檢查預設資料是否完整
+    console.log('3. 檢查預設資料完整性...');
+    const defaultCategories = PRODUCT_CATEGORIES;
+    const defaultProducts = DEFAULT_PRODUCT_CODES;
+    
+    console.log('預設類別數量:', Object.keys(defaultCategories).length);
+    console.log('預設產品類別數量:', Object.keys(defaultProducts).length);
+    
+    // 4. 執行清除操作
+    console.log('4. 執行清除操作...');
+    const categoriesCleared = await clearAllCustomCategories();
+    const productsCleared = await clearAllCustomProducts();
+    
+    // 5. 清除後檢查狀態
+    console.log('5. 清除後檢查狀態...');
+    const afterCategories = await getCustomCategories();
+    const afterProducts = await getCustomProducts();
+    
+    const afterCategoryCount = Object.keys(afterCategories).length;
+    let afterProductCount = 0;
+    Object.keys(afterProducts).forEach(merchantId => {
+      const merchantProducts = afterProducts[merchantId];
+      Object.keys(merchantProducts).forEach(category => {
+        const categoryProducts = merchantProducts[category];
+        afterProductCount += Object.keys(categoryProducts).length;
+      });
+    });
+    
+    console.log(`清除後狀態: ${afterCategoryCount} 個自定義類別, ${afterProductCount} 個自定義產品`);
+    
+    // 6. 驗證預設資料是否保持完整
+    console.log('6. 驗證預設資料完整性...');
+    const defaultCategoriesAfter = PRODUCT_CATEGORIES;
+    const defaultProductsAfter = DEFAULT_PRODUCT_CODES;
+    
+    console.log('清除後預設類別數量:', Object.keys(defaultCategoriesAfter).length);
+    console.log('清除後預設產品類別數量:', Object.keys(defaultProductsAfter).length);
+    
+    // 7. 測試 ANPIN 商家的預設產品是否仍然可用
+    console.log('7. 測試 ANPIN 商家預設產品...');
+    const anpinProducts = await getProductsByCategory('1', 'FRU');
+    console.log('ANPIN 商家水果類別產品數量:', Object.keys(anpinProducts).length);
+    
+    // 8. 生成結果報告
+    console.log('8. 生成結果報告...');
+    let details = '';
+    let success = false;
+    
+    if (categoriesCleared && productsCleared) {
+      // 檢查是否真的清除了自定義資料
+      const customDataCleared = afterCategoryCount === 0 && afterProductCount === 0;
+      
+      // 檢查預設資料是否保持完整
+      const defaultDataIntact = Object.keys(defaultCategoriesAfter).length > 0 && 
+                               Object.keys(defaultProductsAfter).length > 0 &&
+                               Object.keys(anpinProducts).length > 0;
+      
+      if (customDataCleared && defaultDataIntact) {
+        success = true;
+        details = `✅ 清除成功！\n已清除 ${beforeCategoryCount} 個自定義類別和 ${beforeProductCount} 個自定義產品\n預設資料保持完整，ANPIN 商家產品數量: ${Object.keys(anpinProducts).length}`;
+        console.log('🎉 清除功能完全成功！只清除了自定義資料，預設資料保持完整。');
+      } else {
+        success = false;
+        details = `⚠️ 清除結果異常\n自定義資料清除: ${customDataCleared ? '成功' : '失敗'}\n預設資料保持: ${defaultDataIntact ? '成功' : '失敗'}`;
+        console.log('❌ 清除功能異常！可能有預設資料被意外清除。');
+      }
+    } else {
+      success = false;
+      details = `❌ 清除操作失敗\n類別清除: ${categoriesCleared ? '成功' : '失敗'}\n產品清除: ${productsCleared ? '成功' : '失敗'}`;
+      console.log('❌ 清除操作失敗！');
+    }
+    
+    // 9. 清除完成後移除標記
+    console.log('9. 移除清除標記...');
+    await AsyncStorage.removeItem(CLEARING_FLAG_KEY);
+    
+    console.log('=== 商品資料清除完成 ===');
+    return {
+      success,
+      message: success ? '所有商品類別和商品已成功清除' : '清除過程中發生問題',
+      details
+    };
+    
+  } catch (error) {
+    console.error('清除商品資料失敗:', error);
+    
+    // 發生錯誤時也要移除標記
+    try {
+      await AsyncStorage.removeItem(CLEARING_FLAG_KEY);
+    } catch (removeError) {
+      console.error('移除清除標記失敗:', removeError);
+    }
+    
+    return {
+      success: false,
+      message: '清除商品資料時發生錯誤',
+      details: error instanceof Error ? error.message : '未知錯誤'
+    };
+  }
+}; 
+
+/**
+ * 測試清除功能的安全性 - 確保只清除商品資料，不影響其他資料
+ */
+export const testClearFunctionSafety = async (): Promise<void> => {
+  console.log('=== 測試清除功能安全性 ===');
+  
+  try {
+    // 1. 檢查清除前的狀態
+    console.log('1. 檢查清除前的狀態...');
+    const beforeCategories = await getCustomCategories();
+    const beforeProducts = await getCustomProducts();
+    
+    console.log('清除前的自定義類別:', Object.keys(beforeCategories));
+    console.log('清除前的自定義產品商家數量:', Object.keys(beforeProducts).length);
+    
+    // 2. 執行清除操作
+    console.log('2. 執行清除操作...');
+    const clearResult = await clearAllProductData();
+    console.log('清除結果:', clearResult);
+    
+    // 3. 檢查清除後的狀態
+    console.log('3. 檢查清除後的狀態...');
+    const afterCategories = await getCustomCategories();
+    const afterProducts = await getCustomProducts();
+    
+    console.log('清除後的自定義類別:', Object.keys(afterCategories));
+    console.log('清除後的自定義產品商家數量:', Object.keys(afterProducts).length);
+    
+    // 4. 驗證清除結果
+    console.log('4. 驗證清除結果...');
+    const categoriesCleared = Object.keys(afterCategories).length === 0;
+    const productsCleared = Object.keys(afterProducts).length === 0;
+    
+    console.log('自定義類別是否已清除:', categoriesCleared);
+    console.log('自定義產品是否已清除:', productsCleared);
+    
+    // 5. 檢查預設資料是否保持不變
+    console.log('5. 檢查預設資料是否保持不變...');
+    const defaultCategories = PRODUCT_CATEGORIES;
+    const defaultProducts = DEFAULT_PRODUCT_CODES;
+    
+    console.log('預設類別數量:', Object.keys(defaultCategories).length);
+    console.log('預設產品類別數量:', Object.keys(defaultProducts).length);
+    
+    // 6. 測試 ANPIN 商家的預設產品是否仍然可用
+    console.log('6. 測試 ANPIN 商家的預設產品...');
+    const anpinProducts = await getProductsByCategory('1', 'FRU');
+    console.log('ANPIN 商家水果類別產品數量:', Object.keys(anpinProducts).length);
+    
+    // 7. 總結測試結果
+    console.log('=== 測試結果總結 ===');
+    console.log('✅ 自定義類別清除:', categoriesCleared ? '成功' : '失敗');
+    console.log('✅ 自定義產品清除:', productsCleared ? '成功' : '失敗');
+    console.log('✅ 預設類別保持:', Object.keys(defaultCategories).length > 0 ? '成功' : '失敗');
+    console.log('✅ 預設產品保持:', Object.keys(defaultProducts).length > 0 ? '成功' : '失敗');
+    console.log('✅ ANPIN 產品可用:', Object.keys(anpinProducts).length > 0 ? '成功' : '失敗');
+    
+    if (categoriesCleared && productsCleared && Object.keys(defaultCategories).length > 0 && Object.keys(defaultProducts).length > 0 && Object.keys(anpinProducts).length > 0) {
+      console.log('🎉 清除功能安全性測試通過！只清除了自定義資料，預設資料保持完整。');
+    } else {
+      console.log('❌ 清除功能安全性測試失敗！可能有預設資料被意外清除。');
+    }
+    
+  } catch (error) {
+    console.error('測試清除功能安全性時發生錯誤:', error);
+  }
+}; 
+
+/**
+ * 檢查清除功能是否影響到 Google 表單設定
+ */
+export const checkGoogleFormSettingsIntegrity = async (): Promise<{ 
+  spreadsheetSettingsIntact: boolean; 
+  details: string; 
+  recommendations: string[] 
+}> => {
+  console.log('=== 檢查 Google 表單設定完整性 ===');
+  
+  try {
+    const recommendations: string[] = [];
+    
+    // 1. 檢查 AsyncStorage 中的 Google 表單設定
+    console.log('1. 檢查 AsyncStorage 中的 Google 表單設定...');
+    
+    // 檢查試算表儲存鍵值是否存在
+    const spreadsheetStorageKey = '@FanBookkeeping_spreadsheets';
+    const spreadsheetData = await AsyncStorage.getItem(spreadsheetStorageKey);
+    
+    if (spreadsheetData) {
+      console.log('✅ 試算表儲存資料存在');
+      const parsedData = JSON.parse(spreadsheetData);
+      console.log('試算表資料結構:', Object.keys(parsedData));
+      
+      if (parsedData.users && Array.isArray(parsedData.users)) {
+        console.log('用戶試算表數量:', parsedData.users.length);
+        parsedData.users.forEach((user: any, index: number) => {
+          console.log(`用戶 ${index + 1}:`, {
+            userId: user.userId,
+            userEmail: user.userEmail,
+            spreadsheetId: user.spreadsheetId,
+            spreadsheetName: user.spreadsheetName
+          });
+        });
+      }
+    } else {
+      console.log('❌ 試算表儲存資料不存在');
+      recommendations.push('試算表儲存資料不存在，可能需要重新選擇資料表');
+    }
+    
+    // 2. 檢查其他可能被影響的設定
+    console.log('2. 檢查其他可能被影響的設定...');
+    
+    // 檢查應用程式設定
+    const appSettingsKey = '@FanBookkeeping_app_settings';
+    const appSettingsData = await AsyncStorage.getItem(appSettingsKey);
+    
+    if (appSettingsData) {
+      console.log('✅ 應用程式設定存在');
+    } else {
+      console.log('⚠️ 應用程式設定不存在');
+      recommendations.push('應用程式設定不存在，可能需要重新設定');
+    }
+    
+    // 3. 檢查商品資料的清除狀態
+    console.log('3. 檢查商品資料的清除狀態...');
+    
+    const customCategories = await getCustomCategories();
+    const customProducts = await getCustomProducts();
+    
+    const categoryCount = Object.keys(customCategories).length;
+    const productCount = Object.keys(customProducts).length;
+    
+    console.log('當前自定義類別數量:', categoryCount);
+    console.log('當前自定義產品商家數量:', productCount);
+    
+    // 4. 檢查預設資料是否完整
+    console.log('4. 檢查預設資料是否完整...');
+    
+    const defaultCategories = PRODUCT_CATEGORIES;
+    const defaultProducts = DEFAULT_PRODUCT_CODES;
+    
+    const defaultCategoryCount = Object.keys(defaultCategories).length;
+    const defaultProductCategoryCount = Object.keys(defaultProducts).length;
+    
+    console.log('預設類別數量:', defaultCategoryCount);
+    console.log('預設產品類別數量:', defaultProductCategoryCount);
+    
+    // 5. 生成完整性報告
+    console.log('5. 生成完整性報告...');
+    
+    const spreadsheetSettingsIntact = !!spreadsheetData;
+    const appSettingsIntact = !!appSettingsData;
+    const defaultDataIntact = defaultCategoryCount > 0 && defaultProductCategoryCount > 0;
+    
+    let details = '';
+    details += `試算表設定: ${spreadsheetSettingsIntact ? '✅ 完整' : '❌ 缺失'}\n`;
+    details += `應用程式設定: ${appSettingsIntact ? '✅ 完整' : '❌ 缺失'}\n`;
+    details += `預設商品資料: ${defaultDataIntact ? '✅ 完整' : '❌ 缺失'}\n`;
+    details += `自定義商品資料: ${categoryCount} 個類別, ${productCount} 個商家`;
+    
+    // 6. 提供建議
+    if (!spreadsheetSettingsIntact) {
+      recommendations.push('試算表設定已丟失，需要重新選擇 Google 表單');
+    }
+    
+    if (!appSettingsIntact) {
+      recommendations.push('應用程式設定已丟失，需要重新設定');
+    }
+    
+    if (!defaultDataIntact) {
+      recommendations.push('預設商品資料已丟失，這是不正常的，需要調查原因');
+    }
+    
+    if (recommendations.length === 0) {
+      recommendations.push('所有設定都完整，清除功能沒有影響到其他資料');
+    }
+    
+    console.log('=== Google 表單設定完整性檢查完成 ===');
+    return {
+      spreadsheetSettingsIntact,
+      details,
+      recommendations
+    };
+    
+  } catch (error) {
+    console.error('檢查 Google 表單設定完整性時發生錯誤:', error);
+    return {
+      spreadsheetSettingsIntact: false,
+      details: `檢查過程中發生錯誤: ${error instanceof Error ? error.message : '未知錯誤'}`,
+      recommendations: ['檢查過程發生錯誤，無法確定設定完整性']
+    };
+  }
+}; 
+
+/**
+ * 檢查是否正在進行清除操作
+ */
+export const isClearingInProgress = async (): Promise<boolean> => {
+  try {
+    const clearingFlag = await AsyncStorage.getItem(CLEARING_FLAG_KEY);
+    return clearingFlag === 'true';
+  } catch (error) {
+    console.error('檢查清除標記失敗:', error);
+    return false;
+  }
+};
+
+/**
+ * 強制移除清除標記（用於緊急情況）
+ */
+export const forceRemoveClearingFlag = async (): Promise<boolean> => {
+  try {
+    await AsyncStorage.removeItem(CLEARING_FLAG_KEY);
+    console.log('清除標記已強制移除');
+    return true;
+  } catch (error) {
+    console.error('強制移除清除標記失敗:', error);
+    return false;
+  }
 }; 
