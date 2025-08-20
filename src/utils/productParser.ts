@@ -3,17 +3,21 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getMerchantByCode } from './merchantService';
 
 // 產品類別定義 - 全域共用
+// const PRODUCT_CATEGORIES: { [key: string]: string } = {
+//   'FRU': '水果',
+//   'VEG': '蔬菜',
+//   'MEA': '肉類',
+//   'DAI': '乳製品',
+//   'GRA': '穀物',
+//   'BEV': '飲料',
+//   'SNK': '零食',
+//   'FRO': '冷凍食品',
+//   'CAN': '罐頭食品',
+//   'BAK': '烘焙食品',
+// };
+// 產品類別定義 - 全域共用
 const PRODUCT_CATEGORIES: { [key: string]: string } = {
-  'FRU': '水果',
-  'VEG': '蔬菜',
-  'MEA': '肉類',
-  'DAI': '乳製品',
-  'GRA': '穀物',
-  'BEV': '飲料',
-  'SNK': '零食',
-  'FRO': '冷凍食品',
-  'CAN': '罐頭食品',
-  'BAK': '烘焙食品',
+  
 };
 
 // 預設產品代碼對應表 - 只歸屬於 ANPIN 商家

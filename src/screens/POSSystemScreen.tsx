@@ -51,6 +51,10 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
   const [showSpreadsheetsModal, setShowSpreadsheetsModal] = useState(false);
   const [showCreateSpreadsheetModal, setShowCreateSpreadsheetModal] = useState(false);
   const [newSpreadsheetName, setNewSpreadsheetName] = useState('');
+  const [sharedFormContent, setSharedFormContent] = useState<string | null>(null);
+  const [columnDataCount, setColumnDataCount] = useState<number | null>(null);
+  const [sharedSpreadsheetId, setSharedSpreadsheetId] = useState('1hk08GAdEqrw__4eqgfqc6upQCiroYJUPT2r-zQMsTl0');
+  const [sharedSheetName, setSharedSheetName] = useState('20250520安蘋批發');
 
   const { authState, signIn, signOut, getAccessToken } = useGoogleAuth();
 
@@ -801,6 +805,105 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
     );
   };
 
+  const handleReadSharedForm = async () => {
+    try {
+      if (!authState.isSignedIn) {
+        Alert.alert('錯誤', '請先登入Google帳戶');
+        return;
+      }
+
+      // 驗證輸入
+      if (!sharedSpreadsheetId.trim()) {
+        Alert.alert('錯誤', '請輸入試算表 ID');
+        return;
+      }
+
+      if (!sharedSheetName.trim()) {
+        Alert.alert('錯誤', '請輸入頁籤名稱');
+        return;
+      }
+
+      const token = await getAccessToken();
+      if (token) {
+        googleSheetsService.setAccessToken(token);
+      }
+
+      Alert.alert('讀取中', '正在讀取共用表單內容...');
+      
+      const content = await googleSheetsService.getCellValue(sharedSpreadsheetId.trim(), sharedSheetName.trim(), 'C2');
+      setSharedFormContent(content);
+      
+      Alert.alert('成功', '共用表單內容已成功讀取！');
+    } catch (error) {
+      console.error('讀取共用表單錯誤:', error);
+      
+      let errorMessage = '讀取共用表單失敗';
+      if (error instanceof Error) {
+        if (error.message.includes('404')) {
+          errorMessage = '找不到試算表或頁籤，請檢查 ID 和頁籤名稱是否正確';
+        } else if (error.message.includes('403')) {
+          errorMessage = '權限不足，請確認試算表的存取權限';
+        } else if (error.message.includes('400')) {
+          errorMessage = '試算表 ID 或頁籤名稱格式錯誤';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      Alert.alert('錯誤', errorMessage);
+    }
+  };
+
+  // 新增：獲取 A 欄位資料筆數
+  const handleGetColumnDataCount = async () => {
+    try {
+      if (!authState.isSignedIn) {
+        Alert.alert('錯誤', '請先登入Google帳戶');
+        return;
+      }
+
+      // 驗證輸入
+      if (!sharedSpreadsheetId.trim()) {
+        Alert.alert('錯誤', '請輸入試算表 ID');
+        return;
+      }
+
+      if (!sharedSheetName.trim()) {
+        Alert.alert('錯誤', '請輸入頁籤名稱');
+        return;
+      }
+
+      const token = await getAccessToken();
+      if (token) {
+        googleSheetsService.setAccessToken(token);
+      }
+
+      Alert.alert('計算中', '正在計算 A 欄位資料筆數...');
+      
+      const count = await googleSheetsService.getColumnDataCount(sharedSpreadsheetId.trim(), sharedSheetName.trim(), 'A');
+      setColumnDataCount(count);
+      
+      Alert.alert('成功', `A 欄位總共有 ${count} 筆資料！`);
+    } catch (error) {
+      console.error('獲取欄位資料筆數錯誤:', error);
+      
+      let errorMessage = '獲取欄位資料筆數失敗';
+      if (error instanceof Error) {
+        if (error.message.includes('404')) {
+          errorMessage = '找不到試算表或頁籤，請檢查 ID 和頁籤名稱是否正確';
+        } else if (error.message.includes('403')) {
+          errorMessage = '權限不足，請確認試算表的存取權限';
+        } else if (error.message.includes('400')) {
+          errorMessage = '試算表 ID 或頁籤名稱格式錯誤';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      Alert.alert('錯誤', errorMessage);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -1026,6 +1129,74 @@ const POSSystemScreen: React.FC<NavigationProps> = ({ navigation }) => {
               <Text style={styles.managementButtonText}>產品管理</Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        <View style={styles.sharedFormSection}>
+          <Text style={styles.sectionTitle}>共用表單讀取</Text>
+          <Text style={styles.sectionDescription}>
+            讀取共用表單內的內容
+          </Text>
+
+          {/* 新增：輸入欄位 */}
+          <View style={styles.inputFieldsContainer}>
+            <View style={styles.inputFieldRow}>
+              <Text style={styles.inputFieldLabel}>試算表 ID:</Text>
+              <TextInput
+                style={styles.inputField}
+                placeholder="請輸入試算表 ID"
+                value={sharedSpreadsheetId}
+                onChangeText={setSharedSpreadsheetId}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+            
+            <View style={styles.inputFieldRow}>
+              <Text style={styles.inputFieldLabel}>頁籤名稱:</Text>
+              <TextInput
+                style={styles.inputField}
+                placeholder="請輸入頁籤名稱"
+                value={sharedSheetName}
+                onChangeText={setSharedSheetName}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+          </View>
+
+          <View style={styles.sharedFormButtonsContainer}>
+            <TouchableOpacity
+              style={styles.readSharedFormButton}
+              onPress={handleReadSharedForm}
+            >
+              <Text style={styles.readSharedFormButtonIcon}>📖</Text>
+              <Text style={styles.readSharedFormButtonText}>讀取共用表單</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.getColumnCountButton}
+              onPress={handleGetColumnDataCount}
+            >
+              <Text style={styles.getColumnCountButtonIcon}>📊</Text>
+              <Text style={styles.getColumnCountButtonText}>獲取 A 欄位筆數</Text>
+            </TouchableOpacity>
+          </View>
+
+          {sharedFormContent && (
+            <View style={styles.sharedFormResultCard}>
+              <Text style={styles.sharedFormResultTitle}>讀取結果</Text>
+              <Text style={styles.sharedFormResultLabel}>A2欄位內容:</Text>
+              <Text style={styles.sharedFormResultData}>{sharedFormContent}</Text>
+            </View>
+          )}
+
+          {columnDataCount !== null && (
+            <View style={styles.sharedFormResultCard}>
+              <Text style={styles.sharedFormResultTitle}>欄位統計</Text>
+              <Text style={styles.sharedFormResultLabel}>A 欄位總筆數:</Text>
+              <Text style={styles.sharedFormResultData}>{columnDataCount} 筆</Text>
+            </View>
+          )}
         </View>
 
         {scannedData && parsedProduct && (
@@ -2627,6 +2798,103 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   modalNoteInput: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 6,
+    padding: 10,
+    fontSize: 14,
+    color: '#212529',
+  },
+  sharedFormSection: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  readSharedFormButton: {
+    backgroundColor: '#28a745',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    width: '48%',
+  },
+  readSharedFormButtonIcon: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  readSharedFormButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  sharedFormResultCard: {
+    backgroundColor: '#f8f9fa',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 15,
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+  },
+  sharedFormResultTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#212529',
+    marginBottom: 10,
+  },
+  sharedFormResultLabel: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
+    marginBottom: 5,
+  },
+  sharedFormResultData: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#212529',
+  },
+  sharedFormButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  getColumnCountButton: {
+    backgroundColor: '#007bff',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    width: '48%',
+  },
+  getColumnCountButtonIcon: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  getColumnCountButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  inputFieldsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  inputFieldRow: {
+    flex: 1,
+  },
+  inputFieldLabel: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
+    marginBottom: 5,
+  },
+  inputField: {
     backgroundColor: '#f8f9fa',
     borderWidth: 1,
     borderColor: '#dee2e6',

@@ -38,6 +38,8 @@ interface GoogleSheetsService {
   listSpreadsheets: () => Promise<SpreadsheetInfo[]>;
   getSpreadsheetInfo: (spreadsheetId: string) => Promise<SpreadsheetInfo>;
   setColumnFormat: (spreadsheetId: string, sheetName: string, column: string, format: string) => Promise<void>;
+  getCellValue: (spreadsheetId: string, sheetName: string, cellReference: string) => Promise<string>;
+  getColumnDataCount: (spreadsheetId: string, sheetName: string, column: string) => Promise<number>;
 }
 
 class GoogleSheetsServiceImpl implements GoogleSheetsService {
@@ -504,6 +506,54 @@ class GoogleSheetsServiceImpl implements GoogleSheetsService {
     } catch (error) {
       console.error('設定欄位格式錯誤:', error);
       // 不拋出錯誤，因為格式設定不是關鍵功能
+    }
+  }
+
+  // 取得特定儲存格的值
+  async getCellValue(spreadsheetId: string, sheetName: string, cellReference: string): Promise<string> {
+    try {
+      const response = await axios.get(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${sheetName}!${cellReference}`,
+        {
+          headers: this.getHeaders(),
+          timeout: 30000, // 30 秒超時
+        }
+      );
+      return response.data.values[0][0] || ''; // 假設只取第一個值
+    } catch (error) {
+      console.error('取得儲存格值錯誤:', error);
+      throw new Error('無法取得儲存格值');
+    }
+  }
+
+  // 取得欄位資料數量
+  async getColumnDataCount(spreadsheetId: string, sheetName: string, column: string): Promise<number> {
+    try {
+      // 讀取整個工作表，然後計算指定欄位的資料筆數
+      const response = await axios.get(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${sheetName}`,
+        {
+          headers: this.getHeaders(),
+          timeout: 30000, // 30 秒超時
+        }
+      );
+
+      // 檢查是否有值
+      if (response.data.values && response.data.values.length > 0) {
+        // 計算 A 欄位（第一欄）的非空資料筆數
+        let count = 0;
+        for (let i = 0; i < response.data.values.length; i++) {
+          // 檢查 A 欄位（索引 0）是否有值且不為空字串
+          if (response.data.values[i][0] && response.data.values[i][0].toString().trim() !== '') {
+            count++;
+          }
+        }
+        return count;
+      }
+      return 0;
+    } catch (error) {
+      console.error('取得欄位資料數量錯誤:', error);
+      throw new Error('無法取得欄位資料數量');
     }
   }
 }
